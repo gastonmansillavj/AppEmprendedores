@@ -5,16 +5,56 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   Search,
-  Heart,
   ChevronLeft,
   ChevronRight,
+  Store,
   PackageSearch,
+  Plus,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
-import { Listing } from "./types";
-import { demoListings } from "./demoListings";
 import BottomNav from "./components/ui/BottomNav";
+
+type StoreData = {
+  id: string;
+  businessName: string;
+  username: string;
+  logo: string | null;
+  bio: string;
+  city: string;
+  categories: string[];
+  latestListingAt: string;
+};
+
+type SearchStore = {
+  id: string;
+  business_name: string | null;
+  username: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  city: string | null;
+};
+
+type SearchListing = {
+  id: number;
+  title: string;
+  description: string | null;
+  price: number;
+  category: string | null;
+  image_url: string | null;
+  images: string[] | null;
+  created_at: string;
+  seller_id: string;
+};
+
+type SearchProduct = SearchListing & {
+  seller: {
+    id: string;
+    business_name: string | null;
+    username: string | null;
+    avatar_url: string | null;
+  } | null;
+};
 
 const productCategories = [
   "Gastronomía",
@@ -42,6 +82,10 @@ const serviceCategories = [
   "Otros",
 ];
 
+/*
+ * NO TOCAR
+ * Carrusel principal
+ */
 const carouselCategories = [
   {
     type: "Productos",
@@ -93,572 +137,1047 @@ const carouselCategories = [
   },
 ];
 
-export default function Home() {
-  const [listings, setListings] = useState<Listing[]>([]);
-  const [loading, setLoading] = useState(true);
+function formatPrice(price: number) {
+  return new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency: "ARS",
+    maximumFractionDigits: 0,
+  }).format(price);
+}
 
-  const [search, setSearch] = useState("");
-  const [liked, setLiked] = useState<number[]>([]);
+/* =====================================================
+   CARD DE EMPRENDIMIENTO
+   ===================================================== */
 
-  const [user, setUser] = useState<{ id: string } | null>(null);
+function StoreCard({ store }: { store: StoreData }) {
+  return (
+    <Link
+      href={`/store/${store.id}`}
+      className="min-w-[250px] max-w-[250px] bg-[#111111] border border-[#2a2a2a] rounded-2xl overflow-hidden hover:border-red-500/50 hover:shadow-lg hover:shadow-red-900/10 transition-all"
+    >
+      <div className="h-[150px] bg-[#181818] flex items-center justify-center">
+        {store.logo ? (
+          <Image
+            src={store.logo}
+            alt={store.businessName}
+            width={250}
+            height={150}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <Store size={48} className="text-gray-600" />
+        )}
+      </div>
 
-  const [carouselIndex, setCarouselIndex] = useState(0);
+      <div className="p-4">
+        <h3 className="font-semibold text-white truncate">
+          {store.businessName}
+        </h3>
 
-  async function fetchListings() {
-    const { data, error } = await supabase
-      .from("listings")
-      .select("*, profiles(username)")
-      .eq("sold", false)
-      .order("created_at", { ascending: false });
+        {store.bio && (
+          <p className="text-sm text-gray-400 mt-1 line-clamp-2">
+            {store.bio}
+          </p>
+        )}
 
-    if (!error && data) {
-      const mapped: Listing[] = data.map((listing) => ({
-        id: listing.id,
-        title: listing.title,
-        price: listing.price,
-        category: listing.category,
-        condition: listing.condition,
-        image:
-          listing.image_url ||
-          "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400",
-        seller: listing.profiles?.username || "unknown",
-        likes: listing.likes || 0,
-        description: listing.description,
-      }));
+        <div className="flex items-center justify-between mt-4">
+          <span className="text-xs text-gray-500">
+            {store.city}
+          </span>
 
-      setListings(mapped.length > 0 ? mapped : demoListings);
-    } else {
-      setListings(demoListings);
-    }
+          <span className="text-sm font-medium text-red-500">
+            Ver tienda →
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+}
 
-    setLoading(false);
-  }
+/* =====================================================
+   SECCIÓN DE EMPRENDIMIENTOS
+   ===================================================== */
 
-  async function fetchUser() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
-    setUser({ id: user.id });
-
-    const { data } = await supabase
-      .from("listing_likes")
-      .select("listing_id")
-      .eq("user_id", user.id);
-
-    if (data) {
-      setLiked(data.map((item) => item.listing_id));
-    }
-  }
-
-  useEffect(() => {
-    fetchListings();
-    fetchUser();
-  }, []);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCarouselIndex(
-        (previous) => (previous + 1) % carouselCategories.length
-      );
-    }, 4000);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  async function toggleLike(
-    event: React.MouseEvent,
-    listingId: number
-  ) {
-    event.preventDefault();
-    event.stopPropagation();
-
-    const isLiked = liked.includes(listingId);
-
-    setLiked((previous) =>
-      isLiked
-        ? previous.filter((id) => id !== listingId)
-        : [...previous, listingId]
-    );
-
-    // Los usuarios no registrados pueden ver el cambio localmente,
-    // pero no se guarda en Supabase.
-    if (!user || listingId < 0) return;
-
-    if (isLiked) {
-      await supabase
-        .from("listing_likes")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("listing_id", listingId);
-    } else {
-      await supabase.from("listing_likes").insert({
-        user_id: user.id,
-        listing_id: listingId,
-      });
-    }
-  }
-
-  const filteredListings = useMemo(() => {
-    if (!search.trim()) return listings;
-
-    const query = search.toLowerCase();
-
-    return listings.filter(
-      (listing) =>
-        listing.title.toLowerCase().includes(query) ||
-        listing.category?.toLowerCase().includes(query)
-    );
-  }, [listings, search]);
-
-  // Por ahora Trending = publicaciones más recientes.
-  const trending = listings.slice(0, 8);
-
-  const carousel = carouselCategories[carouselIndex];
+function StoreSection({
+  title,
+  subtitle,
+  stores,
+}: {
+  title: string;
+  subtitle?: string;
+  stores: StoreData[];
+}) {
+  if (stores.length === 0) return null;
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]">
+    <section className="mb-8">
+      <div className="flex items-end justify-between mb-4">
+        <div>
+          <h2 className="text-xl font-bold text-white">
+            {title}
+          </h2>
 
-{/* =====================================================
-    HEADER
-===================================================== */}
+          {subtitle && (
+            <p className="text-sm text-gray-500 mt-1">
+              {subtitle}
+            </p>
+          )}
+        </div>
 
-<nav className="sticky top-0 z-40 bg-black/95 backdrop-blur-xl border-b border-white/10">
-  <div className="max-w-[1400px] mx-auto px-3 md:px-8 h-16 flex items-center gap-2 md:gap-5">
-
-    {/* LOGO */}
-
-    <Link
-      href="/"
-      className="flex items-center gap-2.5 shrink-0 no-underline"
-    >
-      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center shadow-lg shadow-red-500/20">
-        <span className="text-white font-black text-sm">
-          A
+        <span className="text-sm text-gray-500">
+          {stores.length}
         </span>
       </div>
 
-      <span className="hidden sm:block font-extrabold text-[17px] tracking-tight text-white">
-        AppEmprendedores
-      </span>
-    </Link>
-
-   
-
-{/* SEARCH + BOTÓN BUSCAR */}
-
-<div className="flex-1 flex justify-center min-w-0">
-  <div className="flex items-center gap-2 w-full max-w-[650px]">
-
-    {/* Barra de búsqueda */}
-
-    <div className="relative flex-1 min-w-0">
-
-      <Search
-        size={15}
-        className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
-      />
-
-      <input
-        type="text"
-        value={search}
-        onChange={(event) => setSearch(event.target.value)}
-        placeholder="Buscar..."
-        className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white/10 border border-white/10 text-white placeholder:text-gray-500 text-sm outline-none focus:border-red-500 transition-colors"
-      />
-
-    </div>
-
-    {/* Botón buscar */}
-
-    <Link
-      href="/search"
-      aria-label="Buscar"
-      title="Buscar"
-      className="w-10 h-10 rounded-xl bg-white/10 border border-white/10 text-white flex items-center justify-center hover:bg-white/15 transition-colors no-underline shrink-0"
-    >
-      <Search size={17} />
-    </Link>
-
-  </div>
-</div>
-
-
-
-{/* PUBLICAR */}
-
-<Link
-  href="/sell"
-  aria-label="Publicar"
-  title="Publicar"
-  className="h-10 px-4 rounded-xl bg-red-600 text-white flex items-center justify-center gap-1.5 font-semibold hover:bg-red-500 transition-colors no-underline shrink-0"
->
-  <span className="text-2xl font-light leading-none">+</span>
-
-  {/* Texto solamente en pantallas grandes */}
-  <span className="hidden md:inline text-sm">
-    Publicar
-  </span>
-</Link>
-
-
-
-  </div>
-</nav>
-
-
-      {/* =====================================================
-          CAROUSEL
-      ===================================================== */}
-
-      <section className="max-w-[1400px] mx-auto px-4 md:px-8 pt-6">
-
-        <div className="relative h-[210px] md:h-[260px] rounded-3xl overflow-hidden bg-black">
-
-          <Image
-            src={carousel.image}
-            alt={carousel.name}
-            fill
-            priority
-            className="object-cover"
+      <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+        {stores.map((store) => (
+          <StoreCard
+            key={store.id}
+            store={store}
           />
-
-          <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/45 to-transparent" />
-
-          <div className="absolute inset-0 flex items-center px-7 md:px-12">
-
-            <div>
-
-              <span className="inline-block mb-2 px-3 py-1 rounded-full bg-red-600 text-white text-[11px] font-bold uppercase tracking-wide">
-                {carousel.type}
-              </span>
-
-              <h1 className="text-white text-3xl md:text-5xl font-black tracking-tight">
-                {carousel.name}
-              </h1>
-
-              <p className="text-white/70 mt-2 text-sm md:text-base">
-                Descubrí emprendimientos de Rafaela
-              </p>
-
-            </div>
-
-          </div>
-
-          {/* PREVIOUS */}
-
-          <button
-            onClick={() =>
-              setCarouselIndex(
-                (carouselIndex - 1 + carouselCategories.length) %
-                  carouselCategories.length
-              )
-            }
-            className="absolute left-4 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors"
-          >
-            <ChevronLeft size={20} />
-          </button>
-
-          {/* NEXT */}
-
-          <button
-            onClick={() =>
-              setCarouselIndex(
-                (carouselIndex + 1) % carouselCategories.length
-              )
-            }
-            className="absolute right-4 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors"
-          >
-            <ChevronRight size={20} />
-          </button>
-
-          {/* INDICATORS */}
-
-          <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-2">
-
-            {carouselCategories.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => setCarouselIndex(index)}
-                className={`h-2 rounded-full transition-all ${
-                  index === carouselIndex
-                    ? "w-7 bg-red-500"
-                    : "w-2 bg-white/40"
-                }`}
-              />
-            ))}
-
-          </div>
-
-        </div>
-
-      </section>
-
-      {/* =====================================================
-          RECENTLY VIEWED
-      ===================================================== */}
-
-      <section className="max-w-[1400px] mx-auto px-4 md:px-8 pt-8">
-
-        <div className="flex items-center justify-between mb-4">
-
-          <div>
-            <h2 className="text-lg font-extrabold">
-              Recently viewed
-            </h2>
-
-            <p className="text-xs text-[var(--color-muted)] mt-1">
-              Publicaciones que viste recientemente
-            </p>
-          </div>
-
-        </div>
-
-        <div className="h-[1px] bg-[var(--color-border)]" />
-
-      </section>
-
-      {/* =====================================================
-          TRENDING
-      ===================================================== */}
-
-      {trending.length > 0 && (
-
-        <section className="max-w-[1400px] mx-auto px-4 md:px-8 pt-8">
-
-          <div className="flex items-center gap-2 mb-4">
-
-            <span className="text-xl">
-              🔥
-            </span>
-
-            <div>
-              <h2 className="text-lg font-extrabold">
-                Trending now
-              </h2>
-
-              <p className="text-xs text-[var(--color-muted)]">
-                Las publicaciones más recientes
-              </p>
-            </div>
-
-          </div>
-
-          <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-2">
-
-            {trending.map((listing) => (
-
-              <Link
-                key={listing.id}
-                href={`/listings/${listing.id}`}
-                className="group shrink-0 w-[175px] no-underline"
-              >
-
-                <div className="rounded-2xl overflow-hidden bg-[var(--color-surface)] border border-[var(--color-border)] transition-all group-hover:-translate-y-1 group-hover:border-red-500/50">
-
-                  <div className="relative aspect-square">
-
-                    <Image
-                      src={listing.image}
-                      alt={listing.title}
-                      fill
-                      className="object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-
-                  </div>
-
-                  <div className="p-3">
-
-                    <p className="text-xs font-semibold truncate">
-                      {listing.title}
-                    </p>
-
-                    <p className="text-sm font-extrabold mt-1">
-                      ${listing.price}
-                    </p>
-
-                  </div>
-
-                </div>
-
-              </Link>
-
-            ))}
-
-          </div>
-
-        </section>
-
-      )}
-
-      {/* =====================================================
-          FEED
-      ===================================================== */}
-
-      <main className="max-w-[1400px] mx-auto px-4 md:px-8 pt-10 pb-28">
-
-        <div className="flex items-end justify-between mb-5">
-
-          <div>
-
-            <h2 className="text-2xl font-black tracking-tight">
-              Emprendimientos
-            </h2>
-
-            <p className="text-sm text-[var(--color-muted)] mt-1">
-              Descubrí productos y servicios de Rafaela
-            </p>
-
-          </div>
-
-          <span className="text-xs text-[var(--color-muted)]">
-            {filteredListings.length} publicaciones
-          </span>
-
-        </div>
-
-        {loading ? (
-
-          <div
-            className="grid gap-5"
-            style={{
-              gridTemplateColumns:
-                "repeat(auto-fill, minmax(210px, 1fr))",
-            }}
-          >
-
-            {[...Array(8)].map((_, index) => (
-
-              <div
-                key={index}
-                className="rounded-2xl overflow-hidden border border-[var(--color-border)] bg-[var(--color-surface)]"
-              >
-
-                <div className="aspect-[4/3] bg-[var(--color-subtle)] animate-pulse" />
-
-                <div className="p-4 space-y-2">
-
-                  <div className="h-3 bg-[var(--color-subtle)] rounded animate-pulse w-4/5" />
-
-                  <div className="h-4 bg-[var(--color-subtle)] rounded animate-pulse w-2/5" />
-
-                </div>
-
-              </div>
-
-            ))}
-
-          </div>
-
-        ) : filteredListings.length === 0 ? (
-
-          <div className="text-center py-24">
-
-            <PackageSearch
-              size={40}
-              className="mx-auto mb-4 text-[var(--color-muted)]"
-            />
-
-            <p className="font-bold">
-              No encontramos publicaciones
-            </p>
-
-            <p className="text-sm text-[var(--color-muted)] mt-1">
-              Probá con otra búsqueda.
-            </p>
-
-          </div>
-
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* =====================================================
+   RESULTADO DE EMPRENDIMIENTO
+   ===================================================== */
+
+function SearchStoreCard({
+  store,
+}: {
+  store: SearchStore;
+}) {
+  const businessName =
+    store.business_name?.trim() ||
+    store.username?.trim() ||
+    "Emprendimiento";
+
+  return (
+    <Link
+      href={`/store/${store.id}`}
+      className="flex items-center gap-4 bg-[#111111] border border-[#2a2a2a] rounded-2xl p-4 hover:border-red-500/50 transition-all"
+    >
+      <div className="w-16 h-16 rounded-xl bg-[#181818] flex items-center justify-center overflow-hidden shrink-0">
+        {store.avatar_url ? (
+          <Image
+            src={store.avatar_url}
+            alt={businessName}
+            width={64}
+            height={64}
+            className="w-full h-full object-cover"
+          />
         ) : (
+          <Store
+            size={28}
+            className="text-gray-600"
+          />
+        )}
+      </div>
 
-          <div
-            className="grid gap-5"
-            style={{
-              gridTemplateColumns:
-                "repeat(auto-fill, minmax(210px, 1fr))",
-            }}
-          >
+      <div className="min-w-0 flex-1">
+        <h3 className="font-semibold text-white truncate">
+          {businessName}
+        </h3>
 
-            {filteredListings.map((listing) => {
-
-              const isLiked = liked.includes(listing.id);
-
-              return (
-
-                <Link
-                  href={`/listings/${listing.id}`}
-                  key={listing.id}
-                  className="group no-underline"
-                >
-
-                  <article className="rounded-2xl overflow-hidden bg-[var(--color-surface)] border border-[var(--color-border)] transition-all duration-200 group-hover:-translate-y-1 group-hover:border-red-500/50">
-
-                    {/* FOTO */}
-
-                    <div className="relative aspect-[4/3] overflow-hidden">
-
-                      <Image
-                        src={listing.image}
-                        alt={listing.title}
-                        fill
-                        className="object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-
-                      {/* FAVORITO */}
-
-                      <button
-                        onClick={(event) =>
-                          toggleLike(event, listing.id)
-                        }
-                        aria-label="Guardar favorito"
-                        className="absolute top-3 right-3 w-9 h-9 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center hover:scale-110 transition-transform"
-                      >
-
-                        <Heart
-                          size={16}
-                          fill={isLiked ? "#ef4444" : "none"}
-                          color={isLiked ? "#ef4444" : "white"}
-                        />
-
-                      </button>
-
-                    </div>
-
-                    {/* INFORMACIÓN */}
-
-                    <div className="p-4">
-
-                      <h3 className="font-bold text-sm truncate">
-                        {listing.title}
-                      </h3>
-
-                      <p className="text-lg font-black mt-1">
-                        ${listing.price}
-                      </p>
-
-                    </div>
-
-                  </article>
-
-                </Link>
-
-              );
-            })}
-
-          </div>
-
+        {store.bio && (
+          <p className="text-sm text-gray-400 line-clamp-2 mt-1">
+            {store.bio}
+          </p>
         )}
 
+        {store.city && (
+          <p className="text-xs text-gray-500 mt-1">
+            {store.city}
+          </p>
+        )}
+      </div>
+
+      <span className="text-sm font-medium text-red-500 shrink-0">
+        Ver →
+      </span>
+    </Link>
+  );
+}
+
+/* =====================================================
+   RESULTADO DE PRODUCTO
+   ===================================================== */
+
+function SearchProductCard({
+  product,
+}: {
+  product: SearchProduct;
+}) {
+  const sellerName =
+    product.seller?.business_name?.trim() ||
+    product.seller?.username?.trim() ||
+    "Emprendimiento";
+
+  const image =
+    product.image_url ||
+    product.images?.[0] ||
+    null;
+
+  return (
+    <Link
+      href={`/listings/${product.id}`}
+      className="bg-[#111111] border border-[#2a2a2a] rounded-2xl overflow-hidden hover:border-red-500/50 hover:shadow-lg hover:shadow-red-900/10 transition-all"
+    >
+      <div className="aspect-square bg-[#181818] flex items-center justify-center">
+        {image ? (
+          <Image
+            src={image}
+            alt={product.title}
+            width={400}
+            height={400}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <PackageSearch
+            size={48}
+            className="text-gray-600"
+          />
+        )}
+      </div>
+
+      <div className="p-4">
+        <h3 className="font-semibold text-white line-clamp-2 min-h-[48px]">
+          {product.title}
+        </h3>
+
+        <p className="text-lg font-bold text-white mt-2">
+          {formatPrice(product.price)}
+        </p>
+
+        <p className="text-sm text-gray-400 mt-2 truncate">
+          {sellerName}
+        </p>
+
+        {product.category && (
+          <span className="inline-block text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-full px-2 py-1 mt-2">
+            {product.category}
+          </span>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+/* =====================================================
+   RESULTADOS DE BÚSQUEDA
+   ===================================================== */
+
+function SearchResults({
+  stores,
+  products,
+  loading,
+}: {
+  stores: SearchStore[];
+  products: SearchProduct[];
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="py-12 text-center text-gray-500">
+        Buscando...
+      </div>
+    );
+  }
+
+  if (
+    stores.length === 0 &&
+    products.length === 0
+  ) {
+    return (
+      <div className="py-16 text-center">
+        <PackageSearch
+          size={48}
+          className="mx-auto text-gray-600"
+        />
+
+        <h2 className="text-lg font-semibold text-gray-300 mt-4">
+          No encontramos resultados
+        </h2>
+
+        <p className="text-sm text-gray-500 mt-1">
+          Probá buscando otro producto o emprendimiento.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-10">
+      {/* EMPRENDIMIENTOS */}
+
+      {stores.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-xl font-bold text-white">
+                Emprendimientos
+              </h2>
+
+              <p className="text-sm text-gray-500 mt-1">
+                Emprendimientos relacionados con tu búsqueda
+              </p>
+            </div>
+
+            <span className="text-sm text-gray-500">
+              {stores.length}
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {stores.map((store) => (
+              <SearchStoreCard
+                key={store.id}
+                store={store}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* PRODUCTOS */}
+
+      {products.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-xl font-bold text-white">
+                Productos
+              </h2>
+
+              <p className="text-sm text-gray-500 mt-1">
+                Productos relacionados con tu búsqueda
+              </p>
+            </div>
+
+            <span className="text-sm text-gray-500">
+              {products.length}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {products.map((product) => (
+              <SearchProductCard
+                key={product.id}
+                product={product}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+/* =====================================================
+   HOME
+   ===================================================== */
+
+export default function Home() {
+  const [search, setSearch] = useState("");
+
+  const [stores, setStores] =
+    useState<StoreData[]>([]);
+
+  const [searchStores, setSearchStores] =
+    useState<SearchStore[]>([]);
+
+  const [searchProducts, setSearchProducts] =
+    useState<SearchProduct[]>([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [searchLoading, setSearchLoading] =
+    useState(false);
+
+  const [carouselIndex, setCarouselIndex] =
+    useState(0);
+
+  /* =====================================================
+     CARGAR EMPRENDIMIENTOS
+     ===================================================== */
+
+  async function fetchStores() {
+    setLoading(true);
+
+    const {
+      data: profiles,
+      error: profilesError,
+    } = await supabase.from("profiles").select(`
+      id,
+      username,
+      business_name,
+      avatar_url,
+      bio,
+      city
+    `);
+
+    if (
+      profilesError ||
+      !profiles
+    ) {
+      console.error(
+        "Error obteniendo emprendimientos:",
+        profilesError
+      );
+
+      setStores([]);
+      setLoading(false);
+      return;
+    }
+
+    const {
+      data: listings,
+      error: listingsError,
+    } = await supabase
+      .from("listings")
+      .select(`
+        id,
+        category,
+        created_at,
+        seller_id
+      `)
+      .eq("sold", false)
+      .order("created_at", {
+        ascending: false,
+      });
+
+    if (listingsError) {
+      console.error(
+        "Error obteniendo publicaciones:",
+        listingsError
+      );
+    }
+
+    const storesMap = new Map<
+      string,
+      StoreData
+    >();
+
+    for (const profile of profiles) {
+      const businessName =
+        profile.business_name?.trim() ||
+        profile.username?.trim() ||
+        "Emprendimiento";
+
+      storesMap.set(profile.id, {
+        id: profile.id,
+        businessName,
+        username:
+          profile.username || "",
+        logo: profile.avatar_url,
+        bio: profile.bio || "",
+        city:
+          profile.city || "Rafaela",
+        categories: [],
+        latestListingAt:
+          "1970-01-01T00:00:00.000Z",
+      });
+    }
+
+    if (listings) {
+      for (const listing of listings) {
+        const store =
+          storesMap.get(
+            listing.seller_id
+          );
+
+        if (!store) continue;
+
+        if (
+          listing.category &&
+          !store.categories.includes(
+            listing.category
+          )
+        ) {
+          store.categories.push(
+            listing.category
+          );
+        }
+
+        if (
+          new Date(
+            listing.created_at
+          ).getTime() >
+          new Date(
+            store.latestListingAt
+          ).getTime()
+        ) {
+          store.latestListingAt =
+            listing.created_at;
+        }
+      }
+    }
+
+    const storesArray =
+      Array.from(
+        storesMap.values()
+      );
+
+    storesArray.sort((a, b) => {
+      return (
+        new Date(
+          b.latestListingAt
+        ).getTime() -
+        new Date(
+          a.latestListingAt
+        ).getTime()
+      );
+    });
+
+    setStores(storesArray);
+    setLoading(false);
+  }
+
+  /* =====================================================
+     BUSCAR EMPRENDIMIENTOS + PRODUCTOS
+     ===================================================== */
+
+  async function performSearch(
+    query: string
+  ) {
+    const cleanQuery =
+      query.trim();
+
+    if (!cleanQuery) {
+      setSearchStores([]);
+      setSearchProducts([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    setSearchLoading(true);
+
+    /*
+     * EMPRENDIMIENTOS
+     */
+
+    const {
+      data: profiles,
+      error: profilesError,
+    } = await supabase
+      .from("profiles")
+      .select(`
+        id,
+        business_name,
+        username,
+        avatar_url,
+        bio,
+        city
+      `)
+      .or(
+        `business_name.ilike.%${cleanQuery}%,username.ilike.%${cleanQuery}%,bio.ilike.%${cleanQuery}%`
+      )
+      .limit(10);
+
+    if (profilesError) {
+      console.error(
+        "Error buscando emprendimientos:",
+        profilesError
+      );
+    }
+
+    /*
+     * PRODUCTOS
+     */
+
+    const {
+      data: listings,
+      error: listingsError,
+    } = await supabase
+      .from("listings")
+      .select(`
+        id,
+        title,
+        description,
+        price,
+        category,
+        image_url,
+        images,
+        created_at,
+        seller_id
+      `)
+      .eq("sold", false)
+      .or(
+        `title.ilike.%${cleanQuery}%,description.ilike.%${cleanQuery}%,category.ilike.%${cleanQuery}%`
+      )
+      .order("created_at", {
+        ascending: false,
+      })
+      .limit(20);
+
+    if (listingsError) {
+      console.error(
+        "Error buscando productos:",
+        listingsError
+      );
+    }
+
+    /*
+     * VENDEDORES
+     */
+
+    let productsWithSeller: SearchProduct[] =
+      [];
+
+    if (
+      listings &&
+      listings.length > 0
+    ) {
+      const sellerIds = [
+        ...new Set(
+          listings.map(
+            (listing) =>
+              listing.seller_id
+          )
+        ),
+      ];
+
+      const {
+        data: sellers,
+        error: sellersError,
+      } = await supabase
+        .from("profiles")
+        .select(`
+          id,
+          business_name,
+          username,
+          avatar_url
+        `)
+        .in(
+          "id",
+          sellerIds
+        );
+
+      if (sellersError) {
+        console.error(
+          "Error obteniendo vendedores:",
+          sellersError
+        );
+      }
+
+      const sellersMap =
+        new Map<
+          string,
+          {
+            id: string;
+            business_name:
+              | string
+              | null;
+            username:
+              | string
+              | null;
+            avatar_url:
+              | string
+              | null;
+          }
+        >();
+
+      sellers?.forEach(
+        (seller) => {
+          sellersMap.set(
+            seller.id,
+            seller
+          );
+        }
+      );
+
+      productsWithSeller =
+        listings.map(
+          (listing) => ({
+            ...listing,
+            seller:
+              sellersMap.get(
+                listing.seller_id
+              ) || null,
+          })
+        );
+    }
+
+    setSearchStores(
+      profiles || []
+    );
+
+    setSearchProducts(
+      productsWithSeller
+    );
+
+    setSearchLoading(false);
+  }
+
+  /* =====================================================
+     CARGAR HOME
+     ===================================================== */
+
+  useEffect(() => {
+    fetchStores();
+  }, []);
+
+  /* =====================================================
+     BÚSQUEDA INSTANTÁNEA
+     ===================================================== */
+
+  useEffect(() => {
+    const cleanQuery =
+      search.trim();
+
+    if (!cleanQuery) {
+      setSearchStores([]);
+      setSearchProducts([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    setSearchLoading(true);
+
+    const timeout =
+      setTimeout(() => {
+        performSearch(
+          cleanQuery
+        );
+      }, 300);
+
+    return () =>
+      clearTimeout(timeout);
+  }, [search]);
+
+  /* =====================================================
+     CARRUSEL AUTOMÁTICO
+     ===================================================== */
+
+  useEffect(() => {
+    const interval =
+      setInterval(() => {
+        setCarouselIndex(
+          (current) =>
+            (current + 1) %
+            carouselCategories.length
+        );
+      }, 4000);
+
+    return () =>
+      clearInterval(interval);
+  }, []);
+
+  const currentCarousel =
+    carouselCategories[
+      carouselIndex
+    ];
+
+  const newStores =
+    useMemo(() => {
+      return stores.slice(0, 10);
+    }, [stores]);
+
+  const getStoresByCategory = (
+    category: string
+  ) => {
+    return stores.filter(
+      (store) =>
+        store.categories.includes(
+          category
+        )
+    );
+  };
+
+  const hasSearch =
+    search.trim().length > 0;
+
+  return (
+    <div className="min-h-screen bg-black text-gray-100 pb-24">
+      {/* =================================================
+          HEADER
+         ================================================= */}
+
+      <header className="sticky top-0 z-50 bg-black/95 backdrop-blur border-b border-[#222]">
+        <div className="max-w-7xl mx-auto px-4 py-3">
+          <div className="flex items-center gap-3 md:gap-4">
+            {/* LOGO */}
+
+            <Link
+              href="/"
+              className="font-bold text-lg md:text-xl shrink-0 text-white"
+            >
+              <span className="text-red-500">
+                App
+              </span>
+              Emprendedores
+            </Link>
+
+            {/* BUSCADOR */}
+
+            <div className="flex-1 flex justify-center min-w-0">
+              <div className="relative w-full max-w-[650px]">
+                <Search
+                  size={18}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
+                />
+
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(event) =>
+                    setSearch(
+                      event.target.value
+                    )
+                  }
+                  placeholder="Buscar emprendimientos o productos..."
+                  className="w-full h-10 pl-10 pr-4 rounded-full border border-[#2a2a2a] bg-[#111] text-white placeholder:text-gray-500 outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/30 transition"
+                />
+              </div>
+            </div>
+
+            {/* NUEVA PUBLICACIÓN */}
+
+            <Link
+              href="/listings/new"
+              className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-3 md:px-4 py-2 rounded-full font-medium text-sm transition shrink-0"
+            >
+              <Plus size={17} />
+
+              <span className="hidden md:inline">
+                Nueva publicación
+              </span>
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 pt-6">
+        {/* =================================================
+            RESULTADOS DE BÚSQUEDA
+           ================================================= */}
+
+        {hasSearch ? (
+          <SearchResults
+            stores={searchStores}
+            products={searchProducts}
+            loading={searchLoading}
+          />
+        ) : (
+          <>
+            {/* =================================================
+                CARRUSEL
+               ================================================= */}
+
+            <section className="mb-8">
+              <div className="relative overflow-hidden rounded-3xl h-[220px] md:h-[300px] border border-[#222]">
+                <Image
+                  src={
+                    currentCarousel.image
+                  }
+                  alt={
+                    currentCarousel.name
+                  }
+                  fill
+                  className="object-cover"
+                  priority
+                />
+
+                <div className="absolute inset-0 bg-black/40" />
+
+                <div className="absolute inset-0 flex flex-col justify-center px-8 md:px-12 text-white">
+                  <span className="text-sm uppercase tracking-wider opacity-80">
+                    {
+                      currentCarousel.type
+                    }
+                  </span>
+
+                  <h1 className="text-3xl md:text-5xl font-bold mt-2">
+                    {
+                      currentCarousel.name
+                    }
+                  </h1>
+
+                  <p className="mt-2 text-sm md:text-base opacity-90">
+                    Descubrí emprendimientos
+                    de tu ciudad
+                  </p>
+                </div>
+
+                <button
+                  onClick={() =>
+                    setCarouselIndex(
+                      (current) =>
+                        current === 0
+                          ? carouselCategories.length -
+                            1
+                          : current - 1
+                    )
+                  }
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 flex items-center justify-center text-gray-900 hover:bg-white transition"
+                  aria-label="Anterior"
+                >
+                  <ChevronLeft
+                    size={20}
+                  />
+                </button>
+
+                <button
+                  onClick={() =>
+                    setCarouselIndex(
+                      (current) =>
+                        (current + 1) %
+                        carouselCategories.length
+                    )
+                  }
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 flex items-center justify-center text-gray-900 hover:bg-white transition"
+                  aria-label="Siguiente"
+                >
+                  <ChevronRight
+                    size={20}
+                  />
+                </button>
+
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                  {carouselCategories.map(
+                    (_, index) => (
+                      <button
+                        key={index}
+                        onClick={() =>
+                          setCarouselIndex(
+                            index
+                          )
+                        }
+                        className={`w-2 h-2 rounded-full transition ${
+                          index ===
+                          carouselIndex
+                            ? "bg-red-500 w-5"
+                            : "bg-white/50"
+                        }`}
+                        aria-label={`Ir a diapositiva ${
+                          index + 1
+                        }`}
+                      />
+                    )
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* =================================================
+                CONTENIDO NORMAL
+               ================================================= */}
+
+            {loading ? (
+              <div className="space-y-8">
+                {[1, 2, 3].map(
+                  (section) => (
+                    <section
+                      key={section}
+                    >
+                      <div className="h-6 w-48 bg-[#181818] rounded mb-4 animate-pulse" />
+
+                      <div className="flex gap-4 overflow-hidden">
+                        {[1, 2, 3, 4].map(
+                          (card) => (
+                            <div
+                              key={card}
+                              className="min-w-[250px] h-[280px] bg-[#181818] border border-[#222] rounded-2xl animate-pulse"
+                            />
+                          )
+                        )}
+                      </div>
+                    </section>
+                  )
+                )}
+              </div>
+            ) : stores.length === 0 ? (
+              <div className="py-16 text-center">
+                <Store
+                  size={48}
+                  className="mx-auto text-gray-600"
+                />
+
+                <h2 className="text-lg font-semibold text-gray-300 mt-4">
+                  Todavía no hay
+                  emprendimientos
+                </h2>
+
+                <p className="text-sm text-gray-500 mt-1">
+                  Cuando se registren
+                  emprendimientos
+                  aparecerán acá.
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* NUEVOS EMPRENDIMIENTOS */}
+
+                <StoreSection
+                  title="Nuevos emprendimientos"
+                  subtitle="Descubrí los últimos emprendimientos"
+                  stores={newStores}
+                />
+
+                {/* PRODUCTOS */}
+
+                <section className="mb-6">
+                  <h2 className="text-2xl font-bold text-white">
+                    Productos
+                  </h2>
+
+                  <p className="text-sm text-gray-500 mt-1">
+                    Explorá emprendimientos
+                    según lo que estás
+                    buscando
+                  </p>
+                </section>
+
+                {productCategories.map(
+                  (category) => (
+                    <StoreSection
+                      key={`product-${category}`}
+                      title={category}
+                      subtitle="Emprendimientos que ofrecen estos productos"
+                      stores={getStoresByCategory(
+                        category
+                      )}
+                    />
+                  )
+                )}
+
+                {/* SERVICIOS */}
+
+                <section className="mb-6 mt-10">
+                  <h2 className="text-2xl font-bold text-white">
+                    Servicios
+                  </h2>
+
+                  <p className="text-sm text-gray-500 mt-1">
+                    Encontrá personas y
+                    emprendimientos que
+                    ofrecen servicios
+                  </p>
+                </section>
+
+                {serviceCategories.map(
+                  (category) => (
+                    <StoreSection
+                      key={`service-${category}`}
+                      title={category}
+                      subtitle="Emprendimientos que ofrecen estos servicios"
+                      stores={getStoresByCategory(
+                        category
+                      )}
+                    />
+                  )
+                )}
+              </>
+            )}
+          </>
+        )}
       </main>
 
-      {/* =====================================================
-          NAVEGACIÓN INFERIOR
-      ===================================================== */}
-
       <BottomNav />
-
     </div>
   );
 }
