@@ -9,7 +9,6 @@ import {
   ChevronRight,
   Store,
   PackageSearch,
-  Plus,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -54,6 +53,11 @@ type SearchProduct = SearchListing & {
     username: string | null;
     avatar_url: string | null;
   } | null;
+};
+
+type UserProfile = {
+  avatar_url: string | null;
+  business_name: string | null;
 };
 
 const productCategories = [
@@ -411,8 +415,6 @@ function SearchResults({
 
   return (
     <div className="space-y-10">
-      {/* EMPRENDIMIENTOS */}
-
       {stores.length > 0 && (
         <section>
           <div className="flex items-center justify-between mb-4">
@@ -441,8 +443,6 @@ function SearchResults({
           </div>
         </section>
       )}
-
-      {/* PRODUCTOS */}
 
       {products.length > 0 && (
         <section>
@@ -500,6 +500,51 @@ export default function Home() {
 
   const [carouselIndex, setCarouselIndex] =
     useState(0);
+
+  /* =====================================================
+     PERFIL DEL USUARIO LOGUEADO
+     ===================================================== */
+
+  const [userProfile, setUserProfile] =
+    useState<UserProfile | null>(null);
+
+  const [isLoggedIn, setIsLoggedIn] =
+    useState(false);
+
+  async function fetchUserProfile() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setIsLoggedIn(false);
+      setUserProfile(null);
+      return;
+    }
+
+    setIsLoggedIn(true);
+
+    const { data, error } =
+      await supabase
+        .from("profiles")
+        .select(`
+          avatar_url,
+          business_name
+        `)
+        .eq("id", user.id)
+        .maybeSingle();
+
+    if (error) {
+      console.error(
+        "Error obteniendo perfil:",
+        error
+      );
+    }
+
+    setUserProfile(
+      data as UserProfile | null
+    );
+  }
 
   /* =====================================================
      CARGAR EMPRENDIMIENTOS
@@ -656,10 +701,6 @@ export default function Home() {
 
     setSearchLoading(true);
 
-    /*
-     * EMPRENDIMIENTOS
-     */
-
     const {
       data: profiles,
       error: profilesError,
@@ -684,10 +725,6 @@ export default function Home() {
         profilesError
       );
     }
-
-    /*
-     * PRODUCTOS
-     */
 
     const {
       data: listings,
@@ -720,10 +757,6 @@ export default function Home() {
         listingsError
       );
     }
-
-    /*
-     * VENDEDORES
-     */
 
     let productsWithSeller: SearchProduct[] =
       [];
@@ -819,6 +852,20 @@ export default function Home() {
 
   useEffect(() => {
     fetchStores();
+    fetchUserProfile();
+
+    const {
+      data: authListener,
+    } =
+      supabase.auth.onAuthStateChange(
+        () => {
+          fetchUserProfile();
+        }
+      );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   /* =====================================================
@@ -893,14 +940,12 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-black text-gray-100 pb-24">
-      {/* =================================================
-          HEADER
-         ================================================= */}
 
       <header className="sticky top-0 z-50 bg-black/95 backdrop-blur border-b border-[#222]">
+
         <div className="max-w-7xl mx-auto px-4 py-3">
+
           <div className="flex items-center gap-3 md:gap-4">
-            {/* LOGO */}
 
             <Link
               href="/"
@@ -912,10 +957,10 @@ export default function Home() {
               Emprendedores
             </Link>
 
-            {/* BUSCADOR */}
-
             <div className="flex-1 flex justify-center min-w-0">
+
               <div className="relative w-full max-w-[650px]">
+
                 <Search
                   size={18}
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
@@ -932,44 +977,79 @@ export default function Home() {
                   placeholder="Buscar emprendimientos o productos..."
                   className="w-full h-10 pl-10 pr-4 rounded-full border border-[#2a2a2a] bg-[#111] text-white placeholder:text-gray-500 outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/30 transition"
                 />
+
               </div>
+
             </div>
 
-            {/* NUEVA PUBLICACIÓN */}
+            {isLoggedIn ? (
 
-            <Link
-              href="/listings/new"
-              className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white px-3 md:px-4 py-2 rounded-full font-medium text-sm transition shrink-0"
+              <Link
+                href="/account"
+                className="shrink-0 w-10 h-10 md:w-11 md:h-11 rounded-full overflow-hidden border border-[#2a2a2a] bg-[#181818] flex items-center justify-center hover:border-red-500 transition-colors"
+                aria-label={
+                  userProfile?.business_name ||
+                  "Mi perfil"
+                }
+              >
+
+                {userProfile?.avatar_url ? (
+                  <Image
+                    src={
+                      userProfile.avatar_url
+                    }
+                    alt={
+                      userProfile.business_name ||
+                      "Mi emprendimiento"
+                    }
+                    width={44}
+                    height={44}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <Store
+                    size={20}
+                    className="text-red-500"
+                  />
+                )}
+
+              </Link>
+
+            ) : (
+
+              <a
+              href="/auth"
+              className="shrink-0 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-full font-semibold text-sm transition"
             >
-              <Plus size={17} />
+              Registrarse
+            </a>
 
-              <span className="hidden md:inline">
-                Nueva publicación
-              </span>
-            </Link>
+            )}
+
           </div>
+
         </div>
+
       </header>
 
       <main className="max-w-7xl mx-auto px-4 pt-6">
-        {/* =================================================
-            RESULTADOS DE BÚSQUEDA
-           ================================================= */}
 
         {hasSearch ? (
+
           <SearchResults
             stores={searchStores}
             products={searchProducts}
             loading={searchLoading}
           />
+
         ) : (
+
           <>
-            {/* =================================================
-                CARRUSEL
-               ================================================= */}
 
             <section className="mb-8">
+
               <div className="relative overflow-hidden rounded-3xl h-[220px] md:h-[300px] border border-[#222]">
+
                 <Image
                   src={
                     currentCarousel.image
@@ -985,6 +1065,7 @@ export default function Home() {
                 <div className="absolute inset-0 bg-black/40" />
 
                 <div className="absolute inset-0 flex flex-col justify-center px-8 md:px-12 text-white">
+
                   <span className="text-sm uppercase tracking-wider opacity-80">
                     {
                       currentCarousel.type
@@ -1001,6 +1082,7 @@ export default function Home() {
                     Descubrí emprendimientos
                     de tu ciudad
                   </p>
+
                 </div>
 
                 <button
@@ -1038,8 +1120,10 @@ export default function Home() {
                 </button>
 
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+
                   {carouselCategories.map(
                     (_, index) => (
+
                       <button
                         key={index}
                         onClick={() =>
@@ -1057,41 +1141,55 @@ export default function Home() {
                           index + 1
                         }`}
                       />
+
                     )
                   )}
+
                 </div>
+
               </div>
+
             </section>
 
-            {/* =================================================
-                CONTENIDO NORMAL
-               ================================================= */}
-
             {loading ? (
+
               <div className="space-y-8">
+
                 {[1, 2, 3].map(
                   (section) => (
+
                     <section
                       key={section}
                     >
+
                       <div className="h-6 w-48 bg-[#181818] rounded mb-4 animate-pulse" />
 
                       <div className="flex gap-4 overflow-hidden">
+
                         {[1, 2, 3, 4].map(
                           (card) => (
+
                             <div
                               key={card}
                               className="min-w-[250px] h-[280px] bg-[#181818] border border-[#222] rounded-2xl animate-pulse"
                             />
+
                           )
                         )}
+
                       </div>
+
                     </section>
+
                   )
                 )}
+
               </div>
+
             ) : stores.length === 0 ? (
+
               <div className="py-16 text-center">
+
                 <Store
                   size={48}
                   className="mx-auto text-gray-600"
@@ -1107,10 +1205,12 @@ export default function Home() {
                   emprendimientos
                   aparecerán acá.
                 </p>
+
               </div>
+
             ) : (
+
               <>
-                {/* NUEVOS EMPRENDIMIENTOS */}
 
                 <StoreSection
                   title="Nuevos emprendimientos"
@@ -1118,9 +1218,8 @@ export default function Home() {
                   stores={newStores}
                 />
 
-                {/* PRODUCTOS */}
-
                 <section className="mb-6">
+
                   <h2 className="text-2xl font-bold text-white">
                     Productos
                   </h2>
@@ -1130,10 +1229,12 @@ export default function Home() {
                     según lo que estás
                     buscando
                   </p>
+
                 </section>
 
                 {productCategories.map(
                   (category) => (
+
                     <StoreSection
                       key={`product-${category}`}
                       title={category}
@@ -1142,12 +1243,12 @@ export default function Home() {
                         category
                       )}
                     />
+
                   )
                 )}
 
-                {/* SERVICIOS */}
-
                 <section className="mb-6 mt-10">
+
                   <h2 className="text-2xl font-bold text-white">
                     Servicios
                   </h2>
@@ -1157,10 +1258,12 @@ export default function Home() {
                     emprendimientos que
                     ofrecen servicios
                   </p>
+
                 </section>
 
                 {serviceCategories.map(
                   (category) => (
+
                     <StoreSection
                       key={`service-${category}`}
                       title={category}
@@ -1169,15 +1272,22 @@ export default function Home() {
                         category
                       )}
                     />
+
                   )
                 )}
+
               </>
+
             )}
+
           </>
+
         )}
+
       </main>
 
       <BottomNav />
+
     </div>
   );
 }

@@ -2,39 +2,33 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Save, Upload, Image as ImageIcon } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "../../../lib/supabase";
 
-import BottomNav from "../../components/ui/BottomNav";
-
-export default function EditProfilePage() {
+export default function ProfileEditPage() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+
+  const [username, setUsername] = useState("");
+  const [businessName, setBusinessName] = useState("");
+  const [bio, setBio] = useState("");
+  const [city, setCity] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [instagram, setInstagram] = useState("");
+  const [facebook, setFacebook] = useState("");
+  const [openingHours, setOpeningHours] = useState("");
+  const [ships, setShips] = useState(false);
+  const [hasPhysicalStore, setHasPhysicalStore] = useState(false);
+  const [address, setAddress] = useState("");
+
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [coverUrl, setCoverUrl] = useState("");
 
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
 
-  const [avatarPreview, setAvatarPreview] = useState("");
-  const [coverPreview, setCoverPreview] = useState("");
-
-  const [form, setForm] = useState({
-    username: "",
-    business_name: "",
-    bio: "",
-    avatar_url: "",
-    cover_url: "",
-    city: "",
-    whatsapp: "",
-    instagram: "",
-    facebook: "",
-    opening_hours: "",
-    ships: false,
-    has_physical_store: false,
-    address: "",
-  });
+  const [error, setError] = useState("");
 
   useEffect(() => {
     loadProfile();
@@ -46,18 +40,16 @@ export default function EditProfilePage() {
 
     const {
       data: { user },
-      error: authError,
     } = await supabase.auth.getUser();
 
-    if (authError || !user) {
-      router.push("/auth/login");
+    if (!user) {
+      router.replace("/auth");
       return;
     }
 
-    const { data, error: profileError } = await supabase
+    const { data, error } = await supabase
       .from("profiles")
-      .select(
-        `
+      .select(`
         username,
         business_name,
         bio,
@@ -71,96 +63,33 @@ export default function EditProfilePage() {
         ships,
         has_physical_store,
         address
-        `
-      )
+      `)
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
-    if (profileError) {
-      console.error(profileError);
-      setError("No pudimos cargar tu perfil.");
+    if (error) {
+      setError(error.message);
       setLoading(false);
       return;
     }
 
-    setForm({
-      username: data.username ?? "",
-      business_name: data.business_name ?? "",
-      bio: data.bio ?? "",
-      avatar_url: data.avatar_url ?? "",
-      cover_url: data.cover_url ?? "",
-      city: data.city ?? "",
-      whatsapp: data.whatsapp ?? "",
-      instagram: data.instagram ?? "",
-      facebook: data.facebook ?? "",
-      opening_hours: data.opening_hours ?? "",
-      ships: data.ships ?? false,
-      has_physical_store: data.has_physical_store ?? false,
-      address: data.address ?? "",
-    });
-
-    setAvatarPreview(data.avatar_url ?? "");
-    setCoverPreview(data.cover_url ?? "");
+    if (data) {
+      setUsername(data.username || "");
+      setBusinessName(data.business_name || "");
+      setBio(data.bio || "");
+      setAvatarUrl(data.avatar_url || "");
+      setCoverUrl(data.cover_url || "");
+      setCity(data.city || "");
+      setWhatsapp(data.whatsapp || "");
+      setInstagram(data.instagram || "");
+      setFacebook(data.facebook || "");
+      setOpeningHours(data.opening_hours || "");
+      setShips(!!data.ships);
+      setHasPhysicalStore(!!data.has_physical_store);
+      setAddress(data.address || "");
+    }
 
     setLoading(false);
-  }
-
-  function updateField(
-    field: keyof typeof form,
-    value: string | boolean
-  ) {
-    setForm((current) => ({
-      ...current,
-      [field]: value,
-    }));
-  }
-
-  function handleAvatarChange(
-    event: React.ChangeEvent<HTMLInputElement>
-  ) {
-    const file = event.target.files?.[0];
-
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      setError("El logo debe ser una imagen.");
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      setError("El logo no puede superar los 5 MB.");
-      return;
-    }
-
-    setError("");
-    setAvatarFile(file);
-
-    const previewUrl = URL.createObjectURL(file);
-    setAvatarPreview(previewUrl);
-  }
-
-  function handleCoverChange(
-    event: React.ChangeEvent<HTMLInputElement>
-  ) {
-    const file = event.target.files?.[0];
-
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      setError("La portada debe ser una imagen.");
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      setError("La portada no puede superar los 5 MB.");
-      return;
-    }
-
-    setError("");
-    setCoverFile(file);
-
-    const previewUrl = URL.createObjectURL(file);
-    setCoverPreview(previewUrl);
   }
 
   async function uploadImage(
@@ -168,31 +97,45 @@ export default function EditProfilePage() {
     folder: "avatars" | "covers",
     userId: string
   ) {
-    const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    const extension =
+      file.name.split(".").pop() || "jpg";
 
-    const filePath = `${folder}/${userId}-${Date.now()}.${extension}`;
+    const filePath =
+      `${folder}/${userId}.${extension}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from("profile-images")
-      .upload(filePath, file, {
-        cacheControl: "3600",
-        upsert: false,
-      });
+    const { error: uploadError } =
+      await supabase.storage
+        .from("profile-images")
+        .upload(filePath, file, {
+          upsert: true,
+        });
 
     if (uploadError) {
       throw uploadError;
     }
 
-    const { data } = supabase.storage
+    const {
+      data: { publicUrl },
+    } = supabase.storage
       .from("profile-images")
       .getPublicUrl(filePath);
 
-    return data.publicUrl;
+    return publicUrl;
   }
 
-  async function handleSave() {
-    setSaving(true);
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+
     setError("");
+
+    if (!businessName.trim()) {
+      setError(
+        "El nombre del emprendimiento es obligatorio."
+      );
+      return;
+    }
+
+    setSaving(true);
 
     try {
       const {
@@ -200,458 +143,366 @@ export default function EditProfilePage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.push("/auth/login");
+        router.replace("/auth");
         return;
       }
 
-      let avatarUrl = form.avatar_url;
-      let coverUrl = form.cover_url;
+      let finalAvatarUrl = avatarUrl;
+      let finalCoverUrl = coverUrl;
 
-      // Subir nuevo logo
       if (avatarFile) {
-        avatarUrl = await uploadImage(
+        finalAvatarUrl = await uploadImage(
           avatarFile,
           "avatars",
           user.id
         );
       }
 
-      // Subir nueva portada
       if (coverFile) {
-        coverUrl = await uploadImage(
+        finalCoverUrl = await uploadImage(
           coverFile,
           "covers",
           user.id
         );
       }
 
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          username: form.username.trim() || null,
-          business_name: form.business_name.trim() || null,
-          bio: form.bio.trim() || null,
-          avatar_url: avatarUrl.trim() || null,
-          cover_url: coverUrl.trim() || null,
-          city: form.city.trim() || null,
-          whatsapp: form.whatsapp.trim() || null,
-          instagram: form.instagram.trim() || null,
-          facebook: form.facebook.trim() || null,
-          opening_hours: form.opening_hours.trim() || null,
-          ships: form.ships,
-          has_physical_store: form.has_physical_store,
-          address: form.has_physical_store
-            ? form.address.trim() || null
-            : null,
-        })
-        .eq("id", user.id);
+      const { data: updatedProfile, error: updateError } =
+        await supabase
+          .from("profiles")
+          .update({
+            username: username.trim(),
+            business_name: businessName.trim(),
+            bio: bio.trim(),
+            avatar_url: finalAvatarUrl || null,
+            cover_url: finalCoverUrl || null,
+            city: city.trim(),
+            whatsapp: whatsapp.trim(),
+            instagram: instagram.trim(),
+            facebook: facebook.trim(),
+            opening_hours: openingHours.trim(),
+            ships,
+            has_physical_store: hasPhysicalStore,
+            address: hasPhysicalStore
+              ? address.trim()
+              : "",
+          })
+          .eq("id", user.id)
+          .select()
+          .single();
 
       if (updateError) {
         throw updateError;
       }
 
-      router.push("/account");
-    } catch (err) {
-      console.error(err);
-      setError(
-        "No pudimos guardar los cambios. Revisá que la imagen sea válida y que tengas permisos para subirla."
+      if (!updatedProfile) {
+        throw new Error(
+          "No se encontró el perfil del usuario para guardar los cambios."
+        );
+      }
+
+      router.push("/");
+      router.refresh();
+    } catch (err: unknown) {
+      console.error(
+        "Error guardando perfil:",
+        err
       );
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo guardar el perfil."
+      );
+    } finally {
       setSaving(false);
     }
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
-        <p className="text-gray-400">
+      <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex items-center justify-center">
+        <p className="text-[var(--color-muted)]">
           Cargando perfil...
         </p>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-black text-white pb-24">
-      <header className="sticky top-0 z-50 bg-black/95 backdrop-blur-xl border-b border-[#222]">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
-          <button
-            onClick={() => router.push("/account")}
-            className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-[#181818] transition"
-          >
-            <ArrowLeft size={20} />
-          </button>
+  const inputClass =
+    "w-full border border-[var(--color-border)] bg-[var(--color-subtle)] rounded-xl px-4 py-2 text-sm outline-none focus:border-red-500 transition-colors";
 
-          <h1 className="text-xl font-bold">
-            Mi perfil
+  const labelClass =
+    "block text-sm font-medium text-[var(--color-muted)] mb-1";
+
+  return (
+    <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]">
+
+      <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
+        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-center">
+          <h1 className="font-bold">
+            Editar perfil
           </h1>
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 py-6">
-        <div className="space-y-6">
+      <main className="max-w-3xl mx-auto px-4 py-8">
 
-          {/* Información principal */}
-          <section className="bg-[#111] border border-[#2a2a2a] rounded-2xl p-5">
-            <h2 className="text-lg font-semibold mb-4">
-              Información del emprendimiento
+        <form
+          onSubmit={handleSave}
+          className="space-y-6"
+        >
+
+          <div>
+            <h2 className="text-xl font-bold">
+              Datos de tu emprendimiento
             </h2>
 
-            <div className="space-y-4">
+            <p className="text-sm text-[var(--color-muted)] mt-1">
+              Completá estos datos para que los clientes puedan
+              conocerte.
+            </p>
+          </div>
 
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">
-                  Nombre del emprendimiento
-                </label>
+          <div>
+            <label className={labelClass}>
+              Nombre de usuario
+            </label>
 
-                <input
-                  type="text"
-                  value={form.business_name}
-                  onChange={(e) =>
-                    updateField(
-                      "business_name",
-                      e.target.value
-                    )
-                  }
-                  placeholder="Ej: Arte & Alma"
-                  className="w-full bg-[#181818] border border-[#2a2a2a] rounded-xl px-4 py-3 outline-none focus:border-red-500 transition"
-                />
-              </div>
+            <input
+              value={username}
+              onChange={(e) =>
+                setUsername(e.target.value)
+              }
+              className={inputClass}
+              placeholder="miemprendimiento"
+            />
+          </div>
 
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">
-                  Usuario
-                </label>
+          <div>
+            <label className={labelClass}>
+              Nombre del emprendimiento *
+            </label>
 
-                <input
-                  type="text"
-                  value={form.username}
-                  onChange={(e) =>
-                    updateField(
-                      "username",
-                      e.target.value
-                    )
-                  }
-                  placeholder="Ej: arteyalma"
-                  className="w-full bg-[#181818] border border-[#2a2a2a] rounded-xl px-4 py-3 outline-none focus:border-red-500 transition"
-                />
-              </div>
+            <input
+              value={businessName}
+              onChange={(e) =>
+                setBusinessName(e.target.value)
+              }
+              required
+              className={inputClass}
+              placeholder="Mi emprendimiento"
+            />
+          </div>
 
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">
-                  Descripción
-                </label>
+          <div>
+            <label className={labelClass}>
+              Descripción
+            </label>
 
-                <textarea
-                  value={form.bio}
-                  onChange={(e) =>
-                    updateField("bio", e.target.value)
-                  }
-                  placeholder="Contale a las personas qué ofrece tu emprendimiento..."
-                  rows={4}
-                  className="w-full bg-[#181818] border border-[#2a2a2a] rounded-xl px-4 py-3 outline-none focus:border-red-500 transition resize-none"
-                />
-              </div>
+            <textarea
+              value={bio}
+              onChange={(e) =>
+                setBio(e.target.value)
+              }
+              className={`${inputClass} min-h-28 resize-none`}
+              placeholder="Contale a tus clientes qué ofrecés..."
+            />
+          </div>
 
-            </div>
-          </section>
+          <div>
+            <label className={labelClass}>
+              Ciudad
+            </label>
 
-          {/* Imágenes */}
-          <section className="bg-[#111] border border-[#2a2a2a] rounded-2xl p-5">
-            <h2 className="text-lg font-semibold mb-4">
-              Imágenes
-            </h2>
+            <input
+              value={city}
+              onChange={(e) =>
+                setCity(e.target.value)
+              }
+              className={inputClass}
+              placeholder="Rafaela"
+            />
+          </div>
 
-            <div className="space-y-6">
+          <div>
+            <label className={labelClass}>
+              WhatsApp
+            </label>
 
-              {/* Logo */}
-              <div>
-                <label className="block text-sm text-gray-400 mb-3">
-                  Logo del emprendimiento
-                </label>
+            <input
+              value={whatsapp}
+              onChange={(e) =>
+                setWhatsapp(e.target.value)
+              }
+              className={inputClass}
+              placeholder="3492..."
+            />
+          </div>
 
-                <div className="flex flex-col sm:flex-row items-start gap-4">
+          <div>
+            <label className={labelClass}>
+              Instagram
+            </label>
 
-                  <div className="w-28 h-28 rounded-2xl overflow-hidden bg-[#181818] border border-[#2a2a2a] flex items-center justify-center">
-                    {avatarPreview ? (
-                      <img
-                        src={avatarPreview}
-                        alt="Logo"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <ImageIcon
-                        size={32}
-                        className="text-gray-600"
-                      />
-                    )}
-                  </div>
+            <input
+              value={instagram}
+              onChange={(e) =>
+                setInstagram(e.target.value)
+              }
+              className={inputClass}
+              placeholder="@miemprendimiento"
+            />
+          </div>
 
-                  <div>
-                    <label className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-xl font-medium cursor-pointer transition">
-                      <Upload size={18} />
-                      Cambiar logo
+          <div>
+            <label className={labelClass}>
+              Facebook
+            </label>
 
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleAvatarChange}
-                        className="hidden"
-                      />
-                    </label>
+            <input
+              value={facebook}
+              onChange={(e) =>
+                setFacebook(e.target.value)
+              }
+              className={inputClass}
+              placeholder="Mi emprendimiento"
+            />
+          </div>
 
-                    <p className="text-xs text-gray-500 mt-2">
-                      JPG, PNG o WebP. Máximo 5 MB.
-                    </p>
-                  </div>
+          <div>
+            <label className={labelClass}>
+              Horarios
+            </label>
 
-                </div>
-              </div>
+            <textarea
+              value={openingHours}
+              onChange={(e) =>
+                setOpeningHours(e.target.value)
+              }
+              className={`${inputClass} min-h-24 resize-none`}
+              placeholder="Lunes a viernes de 9 a 18 hs"
+            />
+          </div>
 
-              {/* Portada */}
-              <div>
-                <label className="block text-sm text-gray-400 mb-3">
-                  Portada del emprendimiento
-                </label>
+          <div className="space-y-3">
 
-                <div className="space-y-3">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={ships}
+                onChange={(e) =>
+                  setShips(e.target.checked)
+                }
+                className="w-4 h-4 accent-red-600"
+              />
 
-                  <div className="w-full h-40 rounded-2xl overflow-hidden bg-[#181818] border border-[#2a2a2a] flex items-center justify-center">
-                    {coverPreview ? (
-                      <img
-                        src={coverPreview}
-                        alt="Portada"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <ImageIcon
-                        size={40}
-                        className="text-gray-600"
-                      />
-                    )}
-                  </div>
+              <span className="text-sm">
+                Realizo envíos
+              </span>
+            </label>
 
-                  <label className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-xl font-medium cursor-pointer transition">
-                    <Upload size={18} />
-                    Cambiar portada
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={hasPhysicalStore}
+                onChange={(e) =>
+                  setHasPhysicalStore(
+                    e.target.checked
+                  )
+                }
+                className="w-4 h-4 accent-red-600"
+              />
 
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleCoverChange}
-                      className="hidden"
-                    />
-                  </label>
+              <span className="text-sm">
+                Tengo local físico
+              </span>
+            </label>
 
-                  <p className="text-xs text-gray-500">
-                    JPG, PNG o WebP. Máximo 5 MB.
-                  </p>
+          </div>
 
-                </div>
-              </div>
-
-            </div>
-          </section>
-
-          {/* Ubicación */}
-          <section className="bg-[#111] border border-[#2a2a2a] rounded-2xl p-5">
-            <h2 className="text-lg font-semibold mb-4">
-              Ubicación
-            </h2>
-
-            <div className="space-y-4">
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">
-                  Ciudad
-                </label>
-
-                <input
-                  type="text"
-                  value={form.city}
-                  onChange={(e) =>
-                    updateField("city", e.target.value)
-                  }
-                  placeholder="Ej: Rafaela"
-                  className="w-full bg-[#181818] border border-[#2a2a2a] rounded-xl px-4 py-3 outline-none focus:border-red-500 transition"
-                />
-              </div>
-
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.has_physical_store}
-                  onChange={(e) =>
-                    updateField(
-                      "has_physical_store",
-                      e.target.checked
-                    )
-                  }
-                  className="w-5 h-5 accent-red-600"
-                />
-
-                <span>
-                  Tengo un local físico
-                </span>
+          {hasPhysicalStore && (
+            <div>
+              <label className={labelClass}>
+                Dirección
               </label>
 
-              {form.has_physical_store && (
-                <div>
-                  <label className="block text-sm text-gray-400 mb-2">
-                    Dirección
-                  </label>
-
-                  <input
-                    type="text"
-                    value={form.address}
-                    onChange={(e) =>
-                      updateField(
-                        "address",
-                        e.target.value
-                      )
-                    }
-                    placeholder="Ej: Av. Santa Fe 123"
-                    className="w-full bg-[#181818] border border-[#2a2a2a] rounded-xl px-4 py-3 outline-none focus:border-red-500 transition"
-                  />
-                </div>
-              )}
-
-            </div>
-          </section>
-
-          {/* Contacto */}
-          <section className="bg-[#111] border border-[#2a2a2a] rounded-2xl p-5">
-            <h2 className="text-lg font-semibold mb-4">
-              Contacto y redes
-            </h2>
-
-            <div className="space-y-4">
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">
-                  WhatsApp
-                </label>
-
-                <input
-                  type="text"
-                  value={form.whatsapp}
-                  onChange={(e) =>
-                    updateField(
-                      "whatsapp",
-                      e.target.value
-                    )
-                  }
-                  placeholder="Ej: 3492..."
-                  className="w-full bg-[#181818] border border-[#2a2a2a] rounded-xl px-4 py-3 outline-none focus:border-red-500 transition"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">
-                  Instagram
-                </label>
-
-                <input
-                  type="text"
-                  value={form.instagram}
-                  onChange={(e) =>
-                    updateField(
-                      "instagram",
-                      e.target.value
-                    )
-                  }
-                  placeholder="@tuemprendimiento"
-                  className="w-full bg-[#181818] border border-[#2a2a2a] rounded-xl px-4 py-3 outline-none focus:border-red-500 transition"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">
-                  Facebook
-                </label>
-
-                <input
-                  type="text"
-                  value={form.facebook}
-                  onChange={(e) =>
-                    updateField(
-                      "facebook",
-                      e.target.value
-                    )
-                  }
-                  placeholder="facebook.com/tuemprendimiento"
-                  className="w-full bg-[#181818] border border-[#2a2a2a] rounded-xl px-4 py-3 outline-none focus:border-red-500 transition"
-                />
-              </div>
-
-            </div>
-          </section>
-
-          {/* Horarios y envíos */}
-          <section className="bg-[#111] border border-[#2a2a2a] rounded-2xl p-5">
-            <h2 className="text-lg font-semibold mb-4">
-              Información adicional
-            </h2>
-
-            <div className="space-y-4">
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">
-                  Horarios de atención
-                </label>
-
-                <textarea
-                  value={form.opening_hours}
-                  onChange={(e) =>
-                    updateField(
-                      "opening_hours",
-                      e.target.value
-                    )
-                  }
-                  placeholder="Ej: Lunes a viernes de 9:00 a 18:00"
-                  rows={3}
-                  className="w-full bg-[#181818] border border-[#2a2a2a] rounded-xl px-4 py-3 outline-none focus:border-red-500 transition resize-none"
-                />
-              </div>
-
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.ships}
-                  onChange={(e) =>
-                    updateField("ships", e.target.checked)
-                  }
-                  className="w-5 h-5 accent-red-600"
-                />
-
-                <span>
-                  Realizo envíos
-                </span>
-              </label>
-
-            </div>
-          </section>
-
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl p-4">
-              {error}
+              <input
+                value={address}
+                onChange={(e) =>
+                  setAddress(e.target.value)
+                }
+                className={inputClass}
+                placeholder="Dirección del local"
+              />
             </div>
           )}
 
-          {/* Guardar */}
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full bg-red-600 hover:bg-red-700 disabled:bg-red-900 disabled:cursor-not-allowed text-white font-semibold rounded-xl py-4 flex items-center justify-center gap-2 transition"
-          >
-            <Save size={20} />
+          <div>
+            <label className={labelClass}>
+              Logo
+            </label>
 
-            {saving ? "Guardando..." : "Guardar cambios"}
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) =>
+                setAvatarFile(
+                  e.target.files?.[0] || null
+                )
+              }
+              className="w-full text-sm"
+            />
+
+            {avatarUrl && (
+              <p className="text-xs text-[var(--color-muted)] mt-2">
+                Ya tenés un logo cargado.
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className={labelClass}>
+              Imagen de portada
+            </label>
+
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) =>
+                setCoverFile(
+                  e.target.files?.[0] || null
+                )
+              }
+              className="w-full text-sm"
+            />
+
+            {coverUrl && (
+              <p className="text-xs text-[var(--color-muted)] mt-2">
+                Ya tenés una portada cargada.
+              </p>
+            )}
+          </div>
+
+          {error && (
+            <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4">
+              <p className="text-sm text-red-500">
+                {error}
+              </p>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={saving}
+            className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-colors"
+          >
+            {saving
+              ? "Guardando..."
+              : "Guardar perfil"}
           </button>
 
-        </div>
+        </form>
       </main>
-
-      <BottomNav />
     </div>
   );
 }
