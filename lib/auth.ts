@@ -8,23 +8,17 @@ export async function signUp(
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
+    options: {
+      data: {
+        username: username.trim(),
+      },
+    },
   });
 
   if (error) throw error;
 
   if (!data.user) {
     throw new Error("No se pudo crear la cuenta.");
-  }
-
-  const { error: profileError } = await supabase
-    .from("profiles")
-    .insert({
-      id: data.user.id,
-      username: username.trim(),
-    });
-
-  if (profileError) {
-    throw profileError;
   }
 
   return data;
