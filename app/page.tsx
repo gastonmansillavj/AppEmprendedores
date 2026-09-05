@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Store,
   PackageSearch,
+  Heart,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -153,24 +154,65 @@ function formatPrice(price: number) {
    CARD DE EMPRENDIMIENTO
    ===================================================== */
 
-function StoreCard({ store }: { store: StoreData }) {
+function StoreCard({
+  store,
+  isFavorite,
+  isOwnStore,
+  onToggleFavorite,
+}: {
+  store: StoreData;
+  isFavorite: boolean;
+  isOwnStore: boolean;
+  onToggleFavorite: (profileId: string) => void;
+}) {
   return (
     <Link
       href={`/store/${store.id}`}
-      className="min-w-[250px] max-w-[250px] bg-[#111111] border border-[#2a2a2a] rounded-2xl overflow-hidden hover:border-red-500/50 hover:shadow-lg hover:shadow-red-900/10 transition-all"
+      className="relative min-w-[250px] max-w-[250px] bg-[#111111] border border-[#2a2a2a] rounded-2xl overflow-hidden hover:border-red-500/50 hover:shadow-lg hover:shadow-red-900/10 transition-all"
     >
-      <div className="h-[150px] bg-[#181818] flex items-center justify-center">
-        {store.logo ? (
-          <Image
-            src={store.logo}
-            alt={store.businessName}
-            width={250}
-            height={150}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <Store size={48} className="text-gray-600" />
-        )}
+      <div className="relative">
+        <div className="h-[150px] bg-[#181818] flex items-center justify-center">
+          {store.logo ? (
+            <Image
+              src={store.logo}
+              alt={store.businessName}
+              width={250}
+              height={150}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <Store
+              size={48}
+              className="text-gray-600"
+            />
+          )}
+        </div>
+
+          {!isOwnStore && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onToggleFavorite(store.id);
+              }}
+              className="absolute top-3 right-3 z-10 w-10 h-10 rounded-full bg-black/70 flex items-center justify-center hover:bg-black transition"
+              aria-label={
+                isFavorite
+                  ? "Quitar de favoritos"
+                  : "Agregar a favoritos"
+              }
+            >
+              <Heart
+                size={20}
+                className={
+                  isFavorite
+                    ? "fill-red-500 text-red-500"
+                    : "text-white"
+                }
+              />
+            </button>
+          )}
       </div>
 
       <div className="p-4">
@@ -206,10 +248,16 @@ function StoreSection({
   title,
   subtitle,
   stores,
+  favoriteIds,
+  currentUserId,
+  onToggleFavorite,
 }: {
   title: string;
   subtitle?: string;
   stores: StoreData[];
+  favoriteIds: string[];
+  currentUserId: string | null;
+  onToggleFavorite: (profileId: string) => void;
 }) {
   if (stores.length === 0) return null;
 
@@ -238,6 +286,9 @@ function StoreSection({
           <StoreCard
             key={store.id}
             store={store}
+            isFavorite={favoriteIds.includes(store.id)}
+            isOwnStore={currentUserId === store.id}
+            onToggleFavorite={onToggleFavorite}
           />
         ))}
       </div>
@@ -502,6 +553,13 @@ export default function Home() {
     useState(0);
 
   /* =====================================================
+     FAVORITOS
+     ===================================================== */
+
+  const [favoriteIds, setFavoriteIds] =
+    useState<string[]>([]);
+
+  /* =====================================================
      PERFIL DEL USUARIO LOGUEADO
      ===================================================== */
 
@@ -511,6 +569,9 @@ export default function Home() {
   const [isLoggedIn, setIsLoggedIn] =
     useState(false);
 
+  const [currentUserId, setCurrentUserId] =
+  useState<string | null>(null);
+
   async function fetchUserProfile() {
     const {
       data: { user },
@@ -519,10 +580,12 @@ export default function Home() {
     if (!user) {
       setIsLoggedIn(false);
       setUserProfile(null);
+      setCurrentUserId(null);
       return;
     }
 
     setIsLoggedIn(true);
+    setCurrentUserId(user.id);
 
     const { data, error } =
       await supabase
@@ -547,6 +610,112 @@ export default function Home() {
   }
 
   /* =====================================================
+     CARGAR FAVORITOS
+     ===================================================== */
+
+  async function fetchFavorites() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setFavoriteIds([]);
+      return;
+    }
+
+    const { data, error } =
+      await supabase
+        .from("favorites")
+        .select("profile_id")
+        .eq("user_id", user.id);
+
+    if (error) {
+      console.error(
+        "Error obteniendo favoritos:",
+        error
+      );
+      return;
+    }
+
+    setFavoriteIds(
+      (data || []).map(
+        (favorite) =>
+          favorite.profile_id
+      )
+    );
+  }
+
+  /* =====================================================
+     AGREGAR / QUITAR FAVORITO
+     ===================================================== */
+
+  async function toggleFavorite(
+    profileId: string
+  ) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return;
+    }
+
+    const isFavorite =
+      favoriteIds.includes(profileId);
+
+    if (isFavorite) {
+      const { error } =
+        await supabase
+          .from("favorites")
+          .delete()
+          .eq("user_id", user.id)
+          .eq(
+            "profile_id",
+            profileId
+          );
+
+      if (error) {
+        console.error(
+          "Error quitando favorito:",
+          error
+        );
+        return;
+      }
+
+      setFavoriteIds(
+        (current) =>
+          current.filter(
+            (id) =>
+              id !== profileId
+          )
+      );
+    } else {
+      const { error } =
+        await supabase
+          .from("favorites")
+          .insert({
+            user_id: user.id,
+            profile_id: profileId,
+          });
+
+      if (error) {
+        console.error(
+          "Error agregando favorito:",
+          error
+        );
+        return;
+      }
+
+      setFavoriteIds(
+        (current) => [
+          ...current,
+          profileId,
+        ]
+      );
+    }
+  }
+
+  /* =====================================================
      CARGAR EMPRENDIMIENTOS
      ===================================================== */
 
@@ -556,14 +725,16 @@ export default function Home() {
     const {
       data: profiles,
       error: profilesError,
-    } = await supabase.from("profiles").select(`
-      id,
-      username,
-      business_name,
-      avatar_url,
-      bio,
-      city
-    `);
+    } = await supabase
+      .from("profiles")
+      .select(`
+        id,
+        username,
+        business_name,
+        avatar_url,
+        bio,
+        city
+      `);
 
     if (
       profilesError ||
@@ -853,6 +1024,7 @@ export default function Home() {
   useEffect(() => {
     fetchStores();
     fetchUserProfile();
+    fetchFavorites();
 
     const {
       data: authListener,
@@ -860,6 +1032,7 @@ export default function Home() {
       supabase.auth.onAuthStateChange(
         () => {
           fetchUserProfile();
+          fetchFavorites();
         }
       );
 
@@ -1018,11 +1191,11 @@ export default function Home() {
             ) : (
 
               <a
-              href="/auth"
-              className="shrink-0 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-full font-semibold text-sm transition"
-            >
-              Registrarse
-            </a>
+                href="/auth"
+                className="shrink-0 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-full font-semibold text-sm transition"
+              >
+                Registrarse
+              </a>
 
             )}
 
@@ -1216,6 +1389,9 @@ export default function Home() {
                   title="Nuevos emprendimientos"
                   subtitle="Descubrí los últimos emprendimientos"
                   stores={newStores}
+                  favoriteIds={favoriteIds}
+                  currentUserId={currentUserId}
+                  onToggleFavorite={toggleFavorite}
                 />
 
                 <section className="mb-6">
@@ -1239,11 +1415,11 @@ export default function Home() {
                       key={`product-${category}`}
                       title={category}
                       subtitle="Emprendimientos que ofrecen estos productos"
-                      stores={getStoresByCategory(
-                        category
-                      )}
+                      stores={getStoresByCategory(category)}
+                      favoriteIds={favoriteIds}
+                      currentUserId={currentUserId}
+                      onToggleFavorite={toggleFavorite}
                     />
-
                   )
                 )}
 
@@ -1268,9 +1444,10 @@ export default function Home() {
                       key={`service-${category}`}
                       title={category}
                       subtitle="Emprendimientos que ofrecen estos servicios"
-                      stores={getStoresByCategory(
-                        category
-                      )}
+                      stores={getStoresByCategory(category)}
+                      favoriteIds={favoriteIds}
+                      currentUserId={currentUserId}
+                      onToggleFavorite={toggleFavorite}
                     />
 
                   )
