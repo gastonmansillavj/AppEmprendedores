@@ -9,11 +9,11 @@ import {
   ChevronRight,
   Store,
   PackageSearch,
-  Heart,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
 import BottomNav from "./components/ui/BottomNav";
+import StoreSection from "./components/home/StoreSection";
 
 type StoreData = {
   id: string;
@@ -96,7 +96,7 @@ const carouselCategories = [
     type: "Productos",
     name: "Gastronomía",
     image:
-      "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1200",
+      "https://images.unsplash.com/photo-1504674900247-0877df9cc32?w=1200",
   },
   {
     type: "Productos",
@@ -151,152 +151,6 @@ function formatPrice(price: number) {
 }
 
 /* =====================================================
-   CARD DE EMPRENDIMIENTO
-   ===================================================== */
-
-function StoreCard({
-  store,
-  isFavorite,
-  isOwnStore,
-  onToggleFavorite,
-}: {
-  store: StoreData;
-  isFavorite: boolean;
-  isOwnStore: boolean;
-  onToggleFavorite: (profileId: string) => void;
-}) {
-  return (
-    <Link
-      href={`/store/${store.id}`}
-      className="relative min-w-[250px] max-w-[250px] bg-[#111111] border border-[#2a2a2a] rounded-2xl overflow-hidden hover:border-red-500/50 hover:shadow-lg hover:shadow-red-900/10 transition-all"
-    >
-      <div className="relative">
-        <div className="h-[150px] bg-[#181818] flex items-center justify-center">
-          {store.logo ? (
-            <Image
-              src={store.logo}
-              alt={store.businessName}
-              width={250}
-              height={150}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <Store
-              size={48}
-              className="text-gray-600"
-            />
-          )}
-        </div>
-
-          {!isOwnStore && (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                onToggleFavorite(store.id);
-              }}
-              className="absolute top-3 right-3 z-10 w-10 h-10 rounded-full bg-black/70 flex items-center justify-center hover:bg-black transition"
-              aria-label={
-                isFavorite
-                  ? "Quitar de favoritos"
-                  : "Agregar a favoritos"
-              }
-            >
-              <Heart
-                size={20}
-                className={
-                  isFavorite
-                    ? "fill-red-500 text-red-500"
-                    : "text-white"
-                }
-              />
-            </button>
-          )}
-      </div>
-
-      <div className="p-4">
-        <h3 className="font-semibold text-white truncate">
-          {store.businessName}
-        </h3>
-
-        {store.bio && (
-          <p className="text-sm text-gray-400 mt-1 line-clamp-2">
-            {store.bio}
-          </p>
-        )}
-
-        <div className="flex items-center justify-between mt-4">
-          <span className="text-xs text-gray-500">
-            {store.city}
-          </span>
-
-          <span className="text-sm font-medium text-red-500">
-            Ver tienda →
-          </span>
-        </div>
-      </div>
-    </Link>
-  );
-}
-
-/* =====================================================
-   SECCIÓN DE EMPRENDIMIENTOS
-   ===================================================== */
-
-function StoreSection({
-  title,
-  subtitle,
-  stores,
-  favoriteIds,
-  currentUserId,
-  onToggleFavorite,
-}: {
-  title: string;
-  subtitle?: string;
-  stores: StoreData[];
-  favoriteIds: string[];
-  currentUserId: string | null;
-  onToggleFavorite: (profileId: string) => void;
-}) {
-  if (stores.length === 0) return null;
-
-  return (
-    <section className="mb-8">
-      <div className="flex items-end justify-between mb-4">
-        <div>
-          <h2 className="text-xl font-bold text-white">
-            {title}
-          </h2>
-
-          {subtitle && (
-            <p className="text-sm text-gray-500 mt-1">
-              {subtitle}
-            </p>
-          )}
-        </div>
-
-        <span className="text-sm text-gray-500">
-          {stores.length}
-        </span>
-      </div>
-
-      <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
-        {stores.map((store) => (
-          <StoreCard
-            key={store.id}
-            store={store}
-            isFavorite={favoriteIds.includes(store.id)}
-            isOwnStore={currentUserId === store.id}
-            onToggleFavorite={onToggleFavorite}
-          />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/* =====================================================
    RESULTADO DE EMPRENDIMIENTO
    ===================================================== */
 
@@ -313,9 +167,9 @@ function SearchStoreCard({
   return (
     <Link
       href={`/store/${store.id}`}
-      className="flex items-center gap-4 bg-[#111111] border border-[#2a2a2a] rounded-2xl p-4 hover:border-red-500/50 transition-all"
+      className="group flex items-center gap-4 bg-[#111111] border border-[#262626] rounded-2xl p-4 hover:border-[#B4232D] hover:bg-[#151515] transition-all duration-200"
     >
-      <div className="w-16 h-16 rounded-xl bg-[#181818] flex items-center justify-center overflow-hidden shrink-0">
+      <div className="w-16 h-16 rounded-xl bg-[#1a1a1a] border border-[#292929] flex items-center justify-center overflow-hidden shrink-0">
         {store.avatar_url ? (
           <Image
             src={store.avatar_url}
@@ -333,7 +187,7 @@ function SearchStoreCard({
       </div>
 
       <div className="min-w-0 flex-1">
-        <h3 className="font-semibold text-white truncate">
+        <h3 className="font-bold text-white truncate">
           {businessName}
         </h3>
 
@@ -344,13 +198,13 @@ function SearchStoreCard({
         )}
 
         {store.city && (
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-gray-500 mt-2">
             {store.city}
           </p>
         )}
       </div>
 
-      <span className="text-sm font-medium text-red-500 shrink-0">
+      <span className="text-sm font-bold text-[#B4232D] shrink-0 group-hover:translate-x-0.5 transition-transform">
         Ver →
       </span>
     </Link>
@@ -379,16 +233,16 @@ function SearchProductCard({
   return (
     <Link
       href={`/listings/${product.id}`}
-      className="bg-[#111111] border border-[#2a2a2a] rounded-2xl overflow-hidden hover:border-red-500/50 hover:shadow-lg hover:shadow-red-900/10 transition-all"
+      className="group bg-[#111111] border border-[#262626] rounded-2xl overflow-hidden hover:border-[#B4232D] hover:shadow-[0_8px_30px_rgba(180,35,45,0.12)] transition-all duration-200"
     >
-      <div className="aspect-square bg-[#181818] flex items-center justify-center">
+      <div className="aspect-square bg-[#181818] flex items-center justify-center overflow-hidden">
         {image ? (
           <Image
             src={image}
             alt={product.title}
             width={400}
             height={400}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
           />
         ) : (
           <PackageSearch
@@ -399,11 +253,11 @@ function SearchProductCard({
       </div>
 
       <div className="p-4">
-        <h3 className="font-semibold text-white line-clamp-2 min-h-[48px]">
+        <h3 className="font-bold text-white line-clamp-2 min-h-[48px]">
           {product.title}
         </h3>
 
-        <p className="text-lg font-bold text-white mt-2">
+        <p className="text-lg font-black text-white mt-2">
           {formatPrice(product.price)}
         </p>
 
@@ -412,7 +266,7 @@ function SearchProductCard({
         </p>
 
         {product.category && (
-          <span className="inline-block text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-full px-2 py-1 mt-2">
+          <span className="inline-block text-[11px] font-semibold text-[#D85A63] bg-[#B4232D]/10 border border-[#B4232D]/20 rounded-full px-2.5 py-1 mt-3">
             {product.category}
           </span>
         )}
@@ -436,8 +290,11 @@ function SearchResults({
 }) {
   if (loading) {
     return (
-      <div className="py-12 text-center text-gray-500">
-        Buscando...
+      <div className="py-20 text-center">
+        <div className="inline-flex items-center gap-3 text-gray-500">
+          <div className="w-4 h-4 border-2 border-gray-700 border-t-[#B4232D] rounded-full animate-spin" />
+          Buscando...
+        </div>
       </div>
     );
   }
@@ -447,17 +304,19 @@ function SearchResults({
     products.length === 0
   ) {
     return (
-      <div className="py-16 text-center">
-        <PackageSearch
-          size={48}
-          className="mx-auto text-gray-600"
-        />
+      <div className="py-20 text-center">
+        <div className="w-16 h-16 mx-auto rounded-2xl bg-[#111111] border border-[#252525] flex items-center justify-center">
+          <PackageSearch
+            size={32}
+            className="text-gray-600"
+          />
+        </div>
 
-        <h2 className="text-lg font-semibold text-gray-300 mt-4">
+        <h2 className="text-xl font-bold text-white mt-5">
           No encontramos resultados
         </h2>
 
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="text-sm text-gray-500 mt-2">
           Probá buscando otro producto o emprendimiento.
         </p>
       </div>
@@ -465,12 +324,12 @@ function SearchResults({
   }
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-12">
       {stores.length > 0 && (
         <section>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-end justify-between mb-5">
             <div>
-              <h2 className="text-xl font-bold text-white">
+              <h2 className="text-2xl font-black tracking-tight text-white">
                 Emprendimientos
               </h2>
 
@@ -479,7 +338,7 @@ function SearchResults({
               </p>
             </div>
 
-            <span className="text-sm text-gray-500">
+            <span className="text-xs font-bold text-gray-500 bg-[#111111] border border-[#242424] px-3 py-1.5 rounded-full">
               {stores.length}
             </span>
           </div>
@@ -497,9 +356,9 @@ function SearchResults({
 
       {products.length > 0 && (
         <section>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-end justify-between mb-5">
             <div>
-              <h2 className="text-xl font-bold text-white">
+              <h2 className="text-2xl font-black tracking-tight text-white">
                 Productos
               </h2>
 
@@ -508,7 +367,7 @@ function SearchResults({
               </p>
             </div>
 
-            <span className="text-sm text-gray-500">
+            <span className="text-xs font-bold text-gray-500 bg-[#111111] border border-[#242424] px-3 py-1.5 rounded-full">
               {products.length}
             </span>
           </div>
@@ -570,7 +429,7 @@ export default function Home() {
     useState(false);
 
   const [currentUserId, setCurrentUserId] =
-  useState<string | null>(null);
+    useState<string | null>(null);
 
   async function fetchUserProfile() {
     const {
@@ -1114,17 +973,21 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-black text-gray-100 pb-24">
 
-      <header className="sticky top-0 z-50 bg-black/95 backdrop-blur border-b border-[#222]">
+      {/* =====================================================
+          HEADER
+          ===================================================== */}
+
+      <header className="sticky top-0 z-50 bg-black/95 backdrop-blur-xl border-b border-[#242424]">
 
         <div className="max-w-7xl mx-auto px-4 py-3">
 
-          <div className="flex items-center gap-3 md:gap-4">
+          <div className="flex items-center gap-3 md:gap-5">
 
             <Link
               href="/"
-              className="font-bold text-lg md:text-xl shrink-0 text-white"
+              className="font-black tracking-tight text-lg md:text-xl shrink-0 text-white"
             >
-              <span className="text-red-500">
+              <span className="text-[#B4232D]">
                 App
               </span>
               Emprendedores
@@ -1136,7 +999,7 @@ export default function Home() {
 
                 <Search
                   size={18}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"
                 />
 
                 <input
@@ -1148,7 +1011,7 @@ export default function Home() {
                     )
                   }
                   placeholder="Buscar emprendimientos o productos..."
-                  className="w-full h-10 pl-10 pr-4 rounded-full border border-[#2a2a2a] bg-[#111] text-white placeholder:text-gray-500 outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/30 transition"
+                  className="w-full h-11 pl-11 pr-4 rounded-xl border border-[#292929] bg-[#111111] text-white placeholder:text-gray-600 outline-none focus:border-[#B4232D] focus:ring-1 focus:ring-[#B4232D]/30 transition-all"
                 />
 
               </div>
@@ -1159,7 +1022,7 @@ export default function Home() {
 
               <Link
                 href="/account"
-                className="shrink-0 w-10 h-10 md:w-11 md:h-11 rounded-full overflow-hidden border border-[#2a2a2a] bg-[#181818] flex items-center justify-center hover:border-red-500 transition-colors"
+                className="shrink-0 w-10 h-10 md:w-11 md:h-11 rounded-xl overflow-hidden border border-[#292929] bg-[#151515] flex items-center justify-center hover:border-[#B4232D] transition-colors"
                 aria-label={
                   userProfile?.business_name ||
                   "Mi perfil"
@@ -1182,7 +1045,7 @@ export default function Home() {
                 ) : (
                   <Store
                     size={20}
-                    className="text-red-500"
+                    className="text-[#B4232D]"
                   />
                 )}
 
@@ -1192,7 +1055,7 @@ export default function Home() {
 
               <a
                 href="/auth"
-                className="shrink-0 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-full font-semibold text-sm transition"
+                className="shrink-0 bg-[#B4232D] hover:bg-[#951D26] text-white px-4 py-2.5 rounded-xl font-bold text-sm transition-colors"
               >
                 Registrarse
               </a>
@@ -1205,7 +1068,11 @@ export default function Home() {
 
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 pt-6">
+      {/* =====================================================
+          CONTENIDO
+          ===================================================== */}
+
+      <main className="max-w-7xl mx-auto px-4 pt-7">
 
         {hasSearch ? (
 
@@ -1219,9 +1086,13 @@ export default function Home() {
 
           <>
 
-            <section className="mb-8">
+            {/* =====================================================
+                CARRUSEL
+                ===================================================== */}
 
-              <div className="relative overflow-hidden rounded-3xl h-[220px] md:h-[300px] border border-[#222]">
+            <section className="mb-10">
+
+              <div className="relative overflow-hidden rounded-3xl h-[220px] md:h-[300px] border border-[#292929] bg-[#111111] shadow-[0_12px_40px_rgba(0,0,0,0.35)]">
 
                 <Image
                   src={
@@ -1235,23 +1106,23 @@ export default function Home() {
                   priority
                 />
 
-                <div className="absolute inset-0 bg-black/40" />
+                <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/40 to-black/20" />
 
-                <div className="absolute inset-0 flex flex-col justify-center px-8 md:px-12 text-white">
+                <div className="absolute inset-0 flex flex-col justify-center px-7 md:px-12 text-white">
 
-                  <span className="text-sm uppercase tracking-wider opacity-80">
+                  <span className="text-xs md:text-sm uppercase tracking-[0.2em] font-bold text-gray-300">
                     {
                       currentCarousel.type
                     }
                   </span>
 
-                  <h1 className="text-3xl md:text-5xl font-bold mt-2">
+                  <h1 className="text-3xl md:text-5xl font-black tracking-tight mt-2 max-w-xl">
                     {
                       currentCarousel.name
                     }
                   </h1>
 
-                  <p className="mt-2 text-sm md:text-base opacity-90">
+                  <p className="mt-3 text-sm md:text-base text-gray-200 max-w-md">
                     Descubrí emprendimientos
                     de tu ciudad
                   </p>
@@ -1268,7 +1139,7 @@ export default function Home() {
                           : current - 1
                     )
                   }
-                  className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 flex items-center justify-center text-gray-900 hover:bg-white transition"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl bg-black/60 border border-white/20 flex items-center justify-center text-white hover:bg-[#B4232D] hover:border-[#B4232D] transition-all"
                   aria-label="Anterior"
                 >
                   <ChevronLeft
@@ -1284,7 +1155,7 @@ export default function Home() {
                         carouselCategories.length
                     )
                   }
-                  className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 flex items-center justify-center text-gray-900 hover:bg-white transition"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl bg-black/60 border border-white/20 flex items-center justify-center text-white hover:bg-[#B4232D] hover:border-[#B4232D] transition-all"
                   aria-label="Siguiente"
                 >
                   <ChevronRight
@@ -1292,7 +1163,7 @@ export default function Home() {
                   />
                 </button>
 
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2">
 
                   {carouselCategories.map(
                     (_, index) => (
@@ -1304,11 +1175,11 @@ export default function Home() {
                             index
                           )
                         }
-                        className={`w-2 h-2 rounded-full transition ${
+                        className={`h-1.5 rounded-full transition-all duration-300 ${
                           index ===
                           carouselIndex
-                            ? "bg-red-500 w-5"
-                            : "bg-white/50"
+                            ? "bg-[#B4232D] w-7"
+                            : "bg-white/40 w-2"
                         }`}
                         aria-label={`Ir a diapositiva ${
                           index + 1
@@ -1324,9 +1195,13 @@ export default function Home() {
 
             </section>
 
+            {/* =====================================================
+                LOADING
+                ===================================================== */}
+
             {loading ? (
 
-              <div className="space-y-8">
+              <div className="space-y-10">
 
                 {[1, 2, 3].map(
                   (section) => (
@@ -1335,7 +1210,9 @@ export default function Home() {
                       key={section}
                     >
 
-                      <div className="h-6 w-48 bg-[#181818] rounded mb-4 animate-pulse" />
+                      <div className="h-7 w-52 bg-[#171717] rounded-lg mb-2 animate-pulse" />
+
+                      <div className="h-4 w-72 bg-[#131313] rounded mb-5 animate-pulse" />
 
                       <div className="flex gap-4 overflow-hidden">
 
@@ -1344,7 +1221,7 @@ export default function Home() {
 
                             <div
                               key={card}
-                              className="min-w-[250px] h-[280px] bg-[#181818] border border-[#222] rounded-2xl animate-pulse"
+                              className="min-w-[250px] h-[280px] bg-[#111111] border border-[#202020] rounded-2xl animate-pulse"
                             />
 
                           )
@@ -1353,7 +1230,6 @@ export default function Home() {
                       </div>
 
                     </section>
-
                   )
                 )}
 
@@ -1361,19 +1237,25 @@ export default function Home() {
 
             ) : stores.length === 0 ? (
 
-              <div className="py-16 text-center">
+              /* =====================================================
+                 ESTADO VACÍO
+                 ===================================================== */
 
-                <Store
-                  size={48}
-                  className="mx-auto text-gray-600"
-                />
+              <div className="py-20 text-center">
 
-                <h2 className="text-lg font-semibold text-gray-300 mt-4">
+                <div className="w-16 h-16 mx-auto rounded-2xl bg-[#111111] border border-[#252525] flex items-center justify-center">
+                  <Store
+                    size={32}
+                    className="text-gray-600"
+                  />
+                </div>
+
+                <h2 className="text-xl font-bold text-white mt-5">
                   Todavía no hay
                   emprendimientos
                 </h2>
 
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-gray-500 mt-2">
                   Cuando se registren
                   emprendimientos
                   aparecerán acá.
@@ -1385,25 +1267,63 @@ export default function Home() {
 
               <>
 
+                {/* =====================================================
+                    SEPARADOR EMPRENDIMIENTOS
+                    ===================================================== */}
+
+                <section className="mb-10 mt-10 sm:mb-12 sm:mt-14">
+
+                  <div className="relative flex items-center">
+
+                    <div className="h-2 w-full bg-[#B4232D]" />
+
+                    <div className="absolute left-1/2 -translate-x-1/2 bg-black px-4 sm:px-6">
+
+                      <h2 className="whitespace-nowrap text-xl font-black uppercase tracking-[0.16em] text-white sm:text-3xl">
+                        EMPRENDIMIENTOS
+                      </h2>
+
+                    </div>
+
+                  </div>
+
+                  <p className="mt-5 text-sm text-[#888888] sm:text-base">
+                    Descubrí los últimos emprendimientos
+                  </p>
+
+                </section>
+
                 <StoreSection
                   title="Nuevos emprendimientos"
-                  subtitle="Descubrí los últimos emprendimientos"
                   stores={newStores}
                   favoriteIds={favoriteIds}
                   currentUserId={currentUserId}
                   onToggleFavorite={toggleFavorite}
+                  hideHeader
                 />
 
-                <section className="mb-6">
+                {/* =====================================================
+                    SEPARADOR PRODUCTOS
+                    ===================================================== */}
 
-                  <h2 className="text-2xl font-bold text-white">
-                    Productos
-                  </h2>
+                <section className="mb-10 mt-14 sm:mb-12 sm:mt-20">
 
-                  <p className="text-sm text-gray-500 mt-1">
-                    Explorá emprendimientos
-                    según lo que estás
-                    buscando
+                  <div className="relative flex items-center">
+
+                    <div className="h-2 w-full bg-[#B4232D]" />
+
+                    <div className="absolute left-1/2 -translate-x-1/2 bg-black px-4 sm:px-6">
+
+                      <h2 className="whitespace-nowrap text-xl font-black uppercase tracking-[0.16em] text-white sm:text-3xl">
+                        PRODUCTOS
+                      </h2>
+
+                    </div>
+
+                  </div>
+
+                  <p className="mt-5 text-sm text-[#888888] sm:text-base">
+                    Explorá emprendimientos según lo que estás buscando
                   </p>
 
                 </section>
@@ -1420,19 +1340,32 @@ export default function Home() {
                       currentUserId={currentUserId}
                       onToggleFavorite={toggleFavorite}
                     />
+
                   )
                 )}
 
-                <section className="mb-6 mt-10">
+                {/* =====================================================
+                    SEPARADOR SERVICIOS
+                    ===================================================== */}
 
-                  <h2 className="text-2xl font-bold text-white">
-                    Servicios
-                  </h2>
+                <section className="mb-10 mt-16 sm:mb-12 sm:mt-20">
 
-                  <p className="text-sm text-gray-500 mt-1">
-                    Encontrá personas y
-                    emprendimientos que
-                    ofrecen servicios
+                  <div className="relative flex items-center">
+
+                    <div className="h-2 w-full bg-[#B4232D]" />
+
+                    <div className="absolute left-1/2 -translate-x-1/2 bg-black px-4 sm:px-6">
+
+                      <h2 className="whitespace-nowrap text-xl font-black uppercase tracking-[0.16em] text-white sm:text-3xl">
+                        SERVICIOS
+                      </h2>
+
+                    </div>
+
+                  </div>
+
+                  <p className="mt-5 text-sm text-[#888888] sm:text-base">
+                    Encontrá personas y emprendimientos que ofrecen servicios
                   </p>
 
                 </section>
