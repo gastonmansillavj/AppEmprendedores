@@ -283,12 +283,13 @@ export default function StoreCard({
           className="
             fixed
             inset-0
-            z-50
+            z-[100]
             flex
             items-center
             justify-center
-            bg-black/80
-            p-3
+            overflow-hidden
+            bg-black/85
+            p-2
             backdrop-blur-sm
             sm:p-4
           "
@@ -301,19 +302,24 @@ export default function StoreCard({
             onClick={(event) => event.stopPropagation()}
             className="
               relative
-              max-h-[92vh]
+              flex
+              max-h-[calc(100vh-16px)]
               w-full
-              max-w-[480px]
-              overflow-y-auto
+              max-w-[520px]
+              flex-col
+              overflow-hidden
               border-2
               border-[#171717]
               bg-white
-              shadow-[6px_6px_0_#171717]
-              sm:max-h-[90vh]
+              shadow-[5px_5px_0_#171717]
+
+              sm:max-h-[calc(100vh-32px)]
               sm:shadow-[8px_8px_0_#171717]
             "
           >
-            {/* Cerrar */}
+            {/* =================================================
+                BOTÓN CERRAR
+            ================================================= */}
             <button
               type="button"
               onClick={closeCard}
@@ -322,10 +328,10 @@ export default function StoreCard({
                 absolute
                 right-2
                 top-2
-                z-20
+                z-30
                 flex
-                h-9
-                w-9
+                h-10
+                w-10
                 items-center
                 justify-center
                 border-2
@@ -337,137 +343,188 @@ export default function StoreCard({
                 hover:translate-x-[1px]
                 hover:translate-y-[1px]
                 hover:shadow-[1px_1px_0_#171717]
+
                 sm:right-3
                 sm:top-3
-                sm:h-10
-                sm:w-10
+                sm:h-11
+                sm:w-11
                 sm:shadow-[3px_3px_0_#171717]
               "
             >
-              <X size={19} strokeWidth={3} />
+              <X size={20} strokeWidth={3} />
             </button>
 
-            {/* Toldo */}
-            <div className="flex h-8 border-b-2 border-[#171717] sm:h-9">
-              <div className="flex-1 bg-[#B4232D]" />
-              <div className="flex-1 bg-[#F2F0EB]" />
-              <div className="flex-1 bg-[#B4232D]" />
-              <div className="flex-1 bg-[#F2F0EB]" />
-              <div className="flex-1 bg-[#B4232D]" />
-              <div className="flex-1 bg-[#F2F0EB]" />
-              <div className="flex-1 bg-[#B4232D]" />
-            </div>
-
-            {/* Imagen */}
-            <div className="relative aspect-[2/1] w-full bg-[#F2F0EB]">
-              {store.logo ? (
-                <Image
-                  src={store.logo}
-                  alt={store.businessName}
-                  fill
-                  sizes="480px"
-                  className="object-cover"
-                />
-              ) : (
-                <div className="flex h-full items-center justify-center">
-                  <Store
-                    size={60}
-                    strokeWidth={1.5}
-                    className="text-[#777777]"
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Información ampliada */}
-            <div className="p-4 sm:p-6">
-              {/* Categorías */}
-              {store.categories.length > 0 && (
-                <div className="mb-3 flex flex-wrap gap-1.5 sm:gap-2">
-                  {store.categories.map((category) => (
-                    <span
-                      key={category}
-                      className="
-                        max-w-full
-                        truncate
-                        border
-                        border-[#171717]
-                        bg-[#F2F0EB]
-                        px-2
-                        py-1
-                        text-[9px]
-                        font-bold
-                        uppercase
-                        tracking-wide
-                        text-[#171717]
-                        sm:px-2.5
-                        sm:text-[10px]
-                      "
-                    >
-                      {category}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {/* Nombre */}
-              <h2 className="break-words text-xl font-black tracking-tight text-[#171717] sm:text-2xl">
-                {store.businessName}
-              </h2>
-
-              {/* Descripción */}
-              {store.bio && (
-                <p className="mt-2 text-sm leading-5 text-[#555555] sm:mt-3 sm:leading-6">
-                  {store.bio}
-                </p>
-              )}
-
-              {/* Ubicación */}
-              <div className="mt-4 border-t-2 border-[#171717] pt-3 sm:mt-5 sm:pt-4">
-                <p className="text-[9px] font-bold uppercase tracking-wider text-[#888888] sm:text-[10px]">
-                  Ubicación
-                </p>
-
-                <p className="mt-1 text-sm font-bold text-[#171717]">
-                  {store.city}
-                </p>
+            {/* =================================================
+                CONTENIDO SCROLLEABLE
+            ================================================= */}
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              
+              {/* Toldo */}
+              <div className="flex h-8 shrink-0 border-b-2 border-[#171717] sm:h-9">
+                <div className="flex-1 bg-[#B4232D]" />
+                <div className="flex-1 bg-[#F2F0EB]" />
+                <div className="flex-1 bg-[#B4232D]" />
+                <div className="flex-1 bg-[#F2F0EB]" />
+                <div className="flex-1 bg-[#B4232D]" />
+                <div className="flex-1 bg-[#F2F0EB]" />
+                <div className="flex-1 bg-[#B4232D]" />
               </div>
 
-              {/* Visitar tienda */}
-              <button
-                type="button"
-                onClick={visitStore}
+              {/* =================================================
+                  IMAGEN
+              ================================================= */}
+              <div
                 className="
-                  mt-5
-                  flex
+                  relative
+                  aspect-[16/9]
                   w-full
-                  items-center
-                  justify-center
-                  gap-2
-                  border-2
-                  border-[#171717]
-                  bg-[#B4232D]
-                  px-4
-                  py-3
-                  text-xs
-                  font-black
-                  uppercase
-                  tracking-wide
-                  text-white
-                  shadow-[3px_3px_0_#171717]
-                  transition-all
-                  hover:translate-x-[2px]
-                  hover:translate-y-[2px]
-                  hover:shadow-[2px_2px_0_#171717]
-                  sm:mt-6
-                  sm:py-3.5
-                  sm:text-sm
-                  sm:shadow-[4px_4px_0_#171717]
+                  bg-[#F2F0EB]
+                  sm:aspect-[2/1]
                 "
               >
-                Visitar tienda
-                <ArrowUpRight size={17} strokeWidth={3} />
-              </button>
+                {store.logo ? (
+                  <Image
+                    src={store.logo}
+                    alt={store.businessName}
+                    fill
+                    sizes="(max-width: 640px) 100vw, 520px"
+                    className="object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center">
+                    <Store
+                      size={56}
+                      strokeWidth={1.5}
+                      className="text-[#777777] sm:h-16 sm:w-16"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* =================================================
+                  INFORMACIÓN
+              ================================================= */}
+              <div className="p-4 sm:p-6">
+                
+                {/* Categorías */}
+                {store.categories.length > 0 && (
+                  <div className="mb-3 flex flex-wrap gap-1.5 sm:mb-4 sm:gap-2">
+                    {store.categories.map((category) => (
+                      <span
+                        key={category}
+                        className="
+                          max-w-full
+                          truncate
+                          border
+                          border-[#171717]
+                          bg-[#F2F0EB]
+                          px-2
+                          py-1
+                          text-[9px]
+                          font-bold
+                          uppercase
+                          tracking-wide
+                          text-[#171717]
+                          sm:px-2.5
+                          sm:text-[10px]
+                        "
+                      >
+                        {category}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Nombre */}
+                <h2
+                  className="
+                    break-words
+                    text-2xl
+                    font-black
+                    leading-tight
+                    tracking-tight
+                    text-[#171717]
+                    sm:text-3xl
+                  "
+                >
+                  {store.businessName}
+                </h2>
+
+                {/* Usuario */}
+                {store.username && (
+                  <p className="mt-1 text-xs font-semibold text-[#888888] sm:text-sm">
+                    @{store.username}
+                  </p>
+                )}
+
+                {/* Descripción */}
+                {store.bio && (
+                  <p
+                    className="
+                      mt-3
+                      text-sm
+                      leading-5
+                      text-[#555555]
+                      sm:mt-4
+                      sm:text-base
+                      sm:leading-6
+                    "
+                  >
+                    {store.bio}
+                  </p>
+                )}
+
+                {/* Ubicación */}
+                <div className="mt-5 border-t-2 border-[#171717] pt-4 sm:mt-6 sm:pt-5">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-[#888888] sm:text-[10px]">
+                    Ubicación
+                  </p>
+
+                  <p className="mt-1 text-sm font-bold text-[#171717] sm:text-base">
+                    {store.city}
+                  </p>
+                </div>
+
+                {/* Visitar tienda */}
+                <button
+                  type="button"
+                  onClick={visitStore}
+                  className="
+                    mt-5
+                    flex
+                    w-full
+                    items-center
+                    justify-center
+                    gap-2
+                    border-2
+                    border-[#171717]
+                    bg-[#B4232D]
+                    px-4
+                    py-3
+                    text-xs
+                    font-black
+                    uppercase
+                    tracking-wide
+                    text-white
+                    shadow-[3px_3px_0_#171717]
+                    transition-all
+                    hover:translate-x-[2px]
+                    hover:translate-y-[2px]
+                    hover:shadow-[2px_2px_0_#171717]
+                    sm:mt-6
+                    sm:py-3.5
+                    sm:text-sm
+                    sm:shadow-[4px_4px_0_#171717]
+                  "
+                >
+                  Visitar tienda
+                  <ArrowUpRight
+                    size={17}
+                    strokeWidth={3}
+                  />
+                </button>
+
+              </div>
             </div>
           </div>
         </div>

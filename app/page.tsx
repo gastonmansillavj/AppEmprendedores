@@ -1280,7 +1280,7 @@ export default function Home() {
                     <div className="absolute left-1/2 -translate-x-1/2 bg-black px-4 sm:px-6">
 
                       <h2 className="whitespace-nowrap text-xl font-black uppercase tracking-[0.16em] text-white sm:text-3xl">
-                        EMPRENDIMIENTOS
+                        NUEVOS EMPRENDIMIENTOS
                       </h2>
 
                     </div>
