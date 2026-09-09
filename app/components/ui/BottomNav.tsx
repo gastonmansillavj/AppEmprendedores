@@ -8,6 +8,7 @@ import {
   Heart,
   SlidersHorizontal,
   PackageSearch,
+  Store,
 } from "lucide-react";
 import { supabase } from "../../../lib/supabase";
 
@@ -15,11 +16,11 @@ const items = [
   { href: "/", label: "Inicio", icon: Home },
   { href: "/favorites", label: "Favoritos", icon: Heart },
   { href: "/filter", label: "Filtrar", icon: SlidersHorizontal },
-  {
-    href: "/account/listings",
-    label: "Mis publicaciones",
-    icon: PackageSearch,
-  },
+ {
+  href: "/account/business",
+  label: "Mi emprendimiento",
+  icon: Store,
+ },
 ];
 
 export default function BottomNav() {
