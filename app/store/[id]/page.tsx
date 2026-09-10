@@ -12,6 +12,10 @@ import {
   Clock,
   Truck,
   ExternalLink,
+  Flag,
+  X,
+  Loader2,
+  CheckCircle2,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -43,6 +47,7 @@ type Listing = {
   images: string[] | null;
   created_at: string;
   sold: boolean;
+  type: string | null;
 };
 
 type ShowcaseImage = {
@@ -53,16 +58,41 @@ type ShowcaseImage = {
   created_at: string;
 };
 
+const REPORT_REASONS = [
+  "Posible estafa",
+  "Información falsa o engañosa",
+  "Contenido inapropiado",
+  "El emprendimiento no corresponde",
+  "Otro",
+];
+
 export default function StorePage() {
   const params = useParams();
   const storeId = params.id as string;
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
-  const [showcaseImages, setShowcaseImages] = useState<ShowcaseImage[]>([]);
+  const [showcaseImages, setShowcaseImages] = useState<ShowcaseImage[]>(
+    []
+  );
 
   const [loading, setLoading] = useState(true);
   const [showcaseIndex, setShowcaseIndex] = useState(0);
+
+  // ============================================================
+  // REPORTES
+  // ============================================================
+
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [selectedReason, setSelectedReason] = useState("");
+  const [reportDescription, setReportDescription] = useState("");
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportSuccess, setReportSuccess] = useState(false);
+  const [reportError, setReportError] = useState("");
+
+  // NUEVO:
+  // Indica que el usuario intentó reportar sin estar registrado.
+  const [reportRequiresAuth, setReportRequiresAuth] = useState(false);
 
   useEffect(() => {
     if (!storeId) return;
@@ -134,7 +164,8 @@ export default function StorePage() {
           image_url,
           images,
           created_at,
-          sold
+          sold,
+          type
         `
         )
         .eq("seller_id", storeId)
@@ -200,11 +231,6 @@ export default function StorePage() {
       (showcaseData || []) as ShowcaseImage[]
     );
 
-    /*
-     * Si el índice anterior ya no existe,
-     * volvemos al primero.
-     */
-
     setShowcaseIndex(0);
 
     setLoading(false);
@@ -264,6 +290,253 @@ export default function StorePage() {
 
   /*
    * ============================================================
+   * REPORTAR EMPRENDIMIENTO
+   * ============================================================
+   */
+
+  async function openReportModal() {
+    setReportError("");
+    setReportSuccess(false);
+    setSelectedReason("");
+    setReportDescription("");
+    setReportRequiresAuth(false);
+
+    /*
+     * ==========================================================
+     * VERIFICAR SESIÓN
+     *
+     * getSession() permite comprobar si existe una sesión sin
+     * tratar la ausencia de sesión como un error.
+     * ==========================================================
+     */
+
+    const {
+      data: sessionData,
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError) {
+      console.error(
+        "Error obteniendo sesión:",
+        sessionError
+      );
+
+      setReportError(
+        "No pudimos verificar tu sesión. Intentá nuevamente."
+      );
+
+      setShowReportModal(true);
+
+      return;
+    }
+
+    /*
+     * ==========================================================
+     * USUARIO NO REGISTRADO
+     * ==========================================================
+     */
+
+    if (!sessionData.session?.user) {
+      setReportRequiresAuth(true);
+      setShowReportModal(true);
+
+      return;
+    }
+
+    /*
+     * ==========================================================
+     * EVITAR AUTO-REPORTE
+     * ==========================================================
+     */
+
+    if (sessionData.session.user.id === storeId) {
+      setReportError(
+        "No podés reportar tu propio emprendimiento."
+      );
+
+      setShowReportModal(true);
+
+      return;
+    }
+
+    /*
+     * ==========================================================
+     * USUARIO AUTENTICADO
+     * ==========================================================
+     */
+
+    setShowReportModal(true);
+  }
+
+  function closeReportModal() {
+    if (reportLoading) return;
+
+    setShowReportModal(false);
+    setSelectedReason("");
+    setReportDescription("");
+    setReportError("");
+    setReportSuccess(false);
+    setReportRequiresAuth(false);
+  }
+
+  async function submitReport() {
+    if (!profile) return;
+
+    if (!selectedReason) {
+      setReportError(
+        "Seleccioná un motivo para realizar el reporte."
+      );
+
+      return;
+    }
+
+    if (reportDescription.trim().length > 1000) {
+      setReportError(
+        "La descripción no puede superar los 1000 caracteres."
+      );
+
+      return;
+    }
+
+    setReportLoading(true);
+    setReportError("");
+
+    try {
+      /*
+       * ==========================================================
+       * VERIFICAR USUARIO
+       * ==========================================================
+       */
+
+      const {
+        data: userData,
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) {
+        if (
+          userError.name ===
+          "AuthSessionMissingError"
+        ) {
+          setReportRequiresAuth(true);
+          setReportError("");
+          setReportLoading(false);
+
+          return;
+        }
+
+        throw userError;
+      }
+
+      const user = userData.user;
+
+      if (!user) {
+        setReportRequiresAuth(true);
+        setReportError("");
+        setReportLoading(false);
+
+        return;
+      }
+
+      /*
+       * ==========================================================
+       * EVITAR AUTO-REPORTE
+       * ==========================================================
+       */
+
+      if (user.id === profile.id) {
+        setReportError(
+          "No podés reportar tu propio emprendimiento."
+        );
+
+        return;
+      }
+
+      /*
+       * ==========================================================
+       * VERIFICAR REPORTE DUPLICADO
+       * ==========================================================
+       */
+
+      const {
+        data: existingReport,
+        error: existingReportError,
+      } = await supabase
+        .from("reports")
+        .select("id")
+        .eq("reporter_id", user.id)
+        .eq(
+          "reported_profile_id",
+          profile.id
+        )
+        .maybeSingle();
+
+      if (existingReportError) {
+        throw existingReportError;
+      }
+
+      if (existingReport) {
+        setReportError(
+          "Ya realizaste un reporte sobre este emprendimiento."
+        );
+
+        return;
+      }
+
+      /*
+       * ==========================================================
+       * INSERTAR REPORTE
+       * ==========================================================
+       */
+
+      const { error: insertError } =
+        await supabase
+          .from("reports")
+          .insert({
+            reporter_id: user.id,
+            reported_profile_id: profile.id,
+            reported_listing_id: null,
+            reason: selectedReason,
+            description:
+              reportDescription.trim() || null,
+            status: "pending",
+          });
+
+      if (insertError) {
+        if (insertError.code === "23505") {
+          setReportError(
+            "Ya realizaste un reporte sobre este emprendimiento."
+          );
+
+          return;
+        }
+
+        throw insertError;
+      }
+
+      /*
+       * ==========================================================
+       * ÉXITO
+       * ==========================================================
+       */
+
+      setReportSuccess(true);
+    } catch (error) {
+      console.error(
+        "Error enviando reporte:",
+        error
+      );
+
+      setReportError(
+        "No pudimos enviar el reporte. Intentá nuevamente."
+      );
+    } finally {
+      setReportLoading(false);
+    }
+  }
+
+  /*
+   * ============================================================
    * LOADING
    * ============================================================
    */
@@ -275,6 +548,7 @@ export default function StorePage() {
         {/* HEADER */}
 
         <nav className="sticky top-0 z-40 border-b border-white/10 bg-black/95 backdrop-blur-xl">
+
           <div className="mx-auto flex h-16 max-w-[1200px] items-center px-4 md:px-8">
 
             <div className="h-8 w-24 animate-pulse rounded-lg bg-[#171717]" />
@@ -284,6 +558,7 @@ export default function StorePage() {
             <div className="h-8 w-8 animate-pulse rounded-full bg-[#171717]" />
 
           </div>
+
         </nav>
 
         <main className="mx-auto max-w-[1200px] px-4 pb-24 md:px-8">
@@ -308,7 +583,7 @@ export default function StorePage() {
 
           <section className="mt-8 px-0 sm:px-4 md:px-8">
 
-            <div className="rounded-2xl border border-white/10 bg-[#111111] p-5 sm:p-6 md:p-7">
+            <div className="relative rounded-2xl border border-white/10 bg-[#111111] p-5 sm:p-6 md:p-7">
 
               <div className="h-5 w-full max-w-2xl animate-pulse rounded-lg bg-[#222222]" />
 
@@ -624,6 +899,7 @@ export default function StorePage() {
 
           <div
             className="
+              relative
               rounded-2xl
               border
               border-white/10
@@ -635,10 +911,44 @@ export default function StorePage() {
             "
           >
 
+            {/* ===================================================== */}
+            {/* REPORTAR EMPRENDIMIENTO */}
+            {/* ===================================================== */}
+
+            <button
+              type="button"
+              onClick={openReportModal}
+              aria-label="Reportar emprendimiento"
+              title="Reportar emprendimiento"
+              className="
+                absolute
+                right-4
+                top-4
+                flex
+                h-9
+                w-9
+                items-center
+                justify-center
+                rounded-lg
+                border
+                border-white/10
+                bg-white/[0.03]
+                text-[#666666]
+                transition-all
+                hover:border-[#B4232D]
+                hover:bg-[#B4232D]/10
+                hover:text-[#B4232D]
+                sm:right-5
+                sm:top-5
+              "
+            >
+              <Flag size={16} />
+            </button>
+
             {/* DESCRIPCIÓN */}
 
             {profile.bio && (
-              <p className="max-w-3xl text-sm leading-6 text-[#B5B5B5] sm:text-base">
+              <p className="max-w-3xl pr-12 text-sm leading-6 text-[#B5B5B5] sm:text-base">
                 {profile.bio}
               </p>
             )}
@@ -1151,6 +1461,378 @@ export default function StorePage() {
         )}
 
       </main>
+
+      {/* ========================================================= */}
+      {/* MODAL REPORTAR EMPRENDIMIENTO */}
+      {/* ========================================================= */}
+
+      {showReportModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 px-4 py-6 backdrop-blur-sm">
+
+          <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-white/10 bg-[#111111] p-6 shadow-2xl sm:p-7">
+
+            {/* CERRAR */}
+
+            <button
+              type="button"
+              onClick={closeReportModal}
+              disabled={reportLoading}
+              aria-label="Cerrar"
+              className="
+                absolute
+                right-4
+                top-4
+                flex
+                h-9
+                w-9
+                items-center
+                justify-center
+                rounded-full
+                text-white/40
+                transition
+                hover:bg-white/5
+                hover:text-white
+                disabled:cursor-not-allowed
+                disabled:opacity-50
+              "
+            >
+              <X size={20} />
+            </button>
+
+            {!reportSuccess ? (
+
+              reportRequiresAuth ? (
+
+                /* ==================================================
+                   USUARIO NO REGISTRADO
+                   ================================================== */
+
+                <div className="flex min-h-[330px] flex-col items-center justify-center px-2 py-8 text-center">
+
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500/10 text-red-500">
+                    <Flag size={32} />
+                  </div>
+
+                  <h2 className="mt-6 text-2xl font-black">
+                    Necesitás estar registrado
+                  </h2>
+
+                  <p className="mt-3 max-w-sm text-sm leading-6 text-white/50">
+                    Para reportar un emprendimiento necesitás tener una cuenta en AppEmprendedores e iniciar sesión.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={closeReportModal}
+                    className="
+                      mt-7
+                      rounded-xl
+                      bg-white
+                      px-6
+                      py-3
+                      text-sm
+                      font-bold
+                      text-black
+                      transition
+                      hover:bg-white/90
+                    "
+                  >
+                    Entendido
+                  </button>
+
+                </div>
+
+              ) : (
+
+                <>
+
+                  {/* TÍTULO */}
+
+                  <div className="pr-10">
+
+                    <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-red-500/10 text-red-500">
+                      <Flag size={21} />
+                    </div>
+
+                    <h2 className="text-2xl font-black">
+                      Reportar emprendimiento
+                    </h2>
+
+                    <p className="mt-2 text-sm leading-6 text-white/50">
+                      Ayudanos a mantener AppEmprendedores segura.
+                      Seleccioná el motivo que mejor describe el problema.
+                    </p>
+
+                  </div>
+
+                  {/* MOTIVOS */}
+
+                  <div className="mt-7">
+
+                    <label className="text-sm font-bold text-white">
+                      Motivo del reporte
+                    </label>
+
+                    <div className="mt-3 space-y-2">
+
+                      {REPORT_REASONS.map(
+                        (reason) => {
+
+                          const selected =
+                            selectedReason === reason;
+
+                          return (
+                            <button
+                              key={reason}
+                              type="button"
+                              onClick={() =>
+                                setSelectedReason(
+                                  reason
+                                )
+                              }
+                              disabled={
+                                reportLoading
+                              }
+                              className={`
+                                flex
+                                w-full
+                                items-center
+                                gap-3
+                                rounded-xl
+                                border
+                                px-4
+                                py-3
+                                text-left
+                                text-sm
+                                font-semibold
+                                transition
+                                ${
+                                  selected
+                                    ? "border-red-500/50 bg-red-500/10 text-white"
+                                    : "border-white/10 bg-white/[0.02] text-white/70 hover:bg-white/5"
+                                }
+                              `}
+                            >
+
+                              <span
+                                className={`
+                                  flex
+                                  h-5
+                                  w-5
+                                  shrink-0
+                                  items-center
+                                  justify-center
+                                  rounded-full
+                                  border
+                                  ${
+                                    selected
+                                      ? "border-red-500"
+                                      : "border-white/20"
+                                  }
+                                `}
+                              >
+                                {selected && (
+                                  <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
+                                )}
+                              </span>
+
+                              {reason}
+
+                            </button>
+                          );
+                        }
+                      )}
+
+                    </div>
+
+                  </div>
+
+                  {/* DESCRIPCIÓN */}
+
+                  <div className="mt-6">
+
+                    <div className="flex items-center justify-between gap-3">
+
+                      <label
+                        htmlFor="report-description"
+                        className="text-sm font-bold text-white"
+                      >
+                        Descripción{" "}
+                        <span className="font-normal text-white/35">
+                          (opcional)
+                        </span>
+                      </label>
+
+                      <span className="text-xs text-white/30">
+                        {reportDescription.length}/1000
+                      </span>
+
+                    </div>
+
+                    <textarea
+                      id="report-description"
+                      value={reportDescription}
+                      onChange={(event) =>
+                        setReportDescription(
+                          event.target.value.slice(
+                            0,
+                            1000
+                          )
+                        )
+                      }
+                      disabled={reportLoading}
+                      placeholder="Contanos brevemente qué sucede..."
+                      rows={4}
+                      maxLength={1000}
+                      className="
+                        mt-3
+                        w-full
+                        resize-none
+                        rounded-xl
+                        border
+                        border-white/10
+                        bg-black/30
+                        px-4
+                        py-3
+                        text-sm
+                        text-white
+                        outline-none
+                        placeholder:text-white/25
+                        focus:border-red-500/50
+                      "
+                    />
+
+                  </div>
+
+                  {/* ERROR */}
+
+                  {reportError && (
+                    <div className="mt-5 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-medium leading-6 text-red-300">
+                      {reportError}
+                    </div>
+                  )}
+
+                  {/* BOTONES */}
+
+                  <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+
+                    <button
+                      type="button"
+                      onClick={closeReportModal}
+                      disabled={reportLoading}
+                      className="
+                        rounded-xl
+                        border
+                        border-white/10
+                        bg-white/5
+                        px-5
+                        py-3
+                        text-sm
+                        font-bold
+                        text-white/70
+                        transition
+                        hover:bg-white/10
+                        hover:text-white
+                        disabled:cursor-not-allowed
+                        disabled:opacity-50
+                      "
+                    >
+                      Cancelar
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={submitReport}
+                      disabled={reportLoading}
+                      className="
+                        inline-flex
+                        items-center
+                        justify-center
+                        gap-2
+                        rounded-xl
+                        bg-red-600
+                        px-5
+                        py-3
+                        text-sm
+                        font-bold
+                        text-white
+                        transition
+                        hover:bg-red-500
+                        disabled:cursor-not-allowed
+                        disabled:opacity-60
+                      "
+                    >
+                      {reportLoading ? (
+                        <>
+                          <Loader2
+                            size={17}
+                            className="animate-spin"
+                          />
+                          Enviando...
+                        </>
+                      ) : (
+                        <>
+                          <Flag size={17} />
+                          Enviar reporte
+                        </>
+                      )}
+                    </button>
+
+                  </div>
+
+                </>
+
+              )
+
+            ) : (
+
+              /* ==================================================
+                 REPORTE ENVIADO
+                 ================================================== */
+
+              <div className="flex min-h-[330px] flex-col items-center justify-center px-2 py-8 text-center">
+
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500/10 text-green-500">
+                  <CheckCircle2 size={36} />
+                </div>
+
+                <h2 className="mt-6 text-2xl font-black">
+                  Reporte enviado
+                </h2>
+
+                <p className="mt-3 max-w-sm text-sm leading-6 text-white/50">
+                  Gracias por ayudarnos a mantener
+                  AppEmprendedores segura. Nuestro equipo podrá
+                  revisar el reporte.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={closeReportModal}
+                  className="
+                    mt-7
+                    rounded-xl
+                    bg-white
+                    px-6
+                    py-3
+                    text-sm
+                    font-bold
+                    text-black
+                    transition
+                    hover:bg-white/90
+                  "
+                >
+                  Cerrar
+                </button>
+
+              </div>
+
+            )}
+
+          </div>
+
+        </div>
+      )}
 
     </div>
   );
