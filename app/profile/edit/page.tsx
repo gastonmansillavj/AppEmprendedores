@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ImagePlus, Camera } from "lucide-react";
 import { supabase } from "../../../lib/supabase";
 
 export default function ProfileEditPage() {
@@ -27,6 +28,9 @@ export default function ProfileEditPage() {
 
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
+
+  const [avatarPreview, setAvatarPreview] = useState("");
+  const [coverPreview, setCoverPreview] = useState("");
 
   const [error, setError] = useState("");
 
@@ -79,6 +83,8 @@ export default function ProfileEditPage() {
       setBio(data.bio || "");
       setAvatarUrl(data.avatar_url || "");
       setCoverUrl(data.cover_url || "");
+      setAvatarPreview(data.avatar_url || "");
+      setCoverPreview(data.cover_url || "");
       setCity(data.city || "");
       setWhatsapp(data.whatsapp || "");
       setInstagram(data.instagram || "");
@@ -92,13 +98,39 @@ export default function ProfileEditPage() {
     setLoading(false);
   }
 
+  function handleAvatarChange(
+    e: React.ChangeEvent<HTMLInputElement>
+  ) {
+    const file = e.target.files?.[0] || null;
+
+    if (!file) return;
+
+    setAvatarFile(file);
+
+    const previewUrl = URL.createObjectURL(file);
+    setAvatarPreview(previewUrl);
+  }
+
+  function handleCoverChange(
+    e: React.ChangeEvent<HTMLInputElement>
+  ) {
+    const file = e.target.files?.[0] || null;
+
+    if (!file) return;
+
+    setCoverFile(file);
+
+    const previewUrl = URL.createObjectURL(file);
+    setCoverPreview(previewUrl);
+  }
+
   async function uploadImage(
     file: File,
     folder: "avatars" | "covers",
     userId: string
   ) {
     const extension =
-      file.name.split(".").pop() || "jpg";
+      file.name.split(".").pop()?.toLowerCase() || "jpg";
 
     const filePath =
       `${folder}/${userId}.${extension}`;
@@ -166,29 +198,31 @@ export default function ProfileEditPage() {
         );
       }
 
-      const { data: updatedProfile, error: updateError } =
-        await supabase
-          .from("profiles")
-          .update({
-            username: username.trim(),
-            business_name: businessName.trim(),
-            bio: bio.trim(),
-            avatar_url: finalAvatarUrl || null,
-            cover_url: finalCoverUrl || null,
-            city: city.trim(),
-            whatsapp: whatsapp.trim(),
-            instagram: instagram.trim(),
-            facebook: facebook.trim(),
-            opening_hours: openingHours.trim(),
-            ships,
-            has_physical_store: hasPhysicalStore,
-            address: hasPhysicalStore
-              ? address.trim()
-              : "",
-          })
-          .eq("id", user.id)
-          .select()
-          .single();
+      const {
+        data: updatedProfile,
+        error: updateError,
+      } = await supabase
+        .from("profiles")
+        .update({
+          username: username.trim(),
+          business_name: businessName.trim(),
+          bio: bio.trim(),
+          avatar_url: finalAvatarUrl || null,
+          cover_url: finalCoverUrl || null,
+          city: city.trim(),
+          whatsapp: whatsapp.trim(),
+          instagram: instagram.trim(),
+          facebook: facebook.trim(),
+          opening_hours: openingHours.trim(),
+          ships,
+          has_physical_store: hasPhysicalStore,
+          address: hasPhysicalStore
+            ? address.trim()
+            : "",
+        })
+        .eq("id", user.id)
+        .select()
+        .single();
 
       if (updateError) {
         throw updateError;
@@ -437,50 +471,115 @@ export default function ProfileEditPage() {
             </div>
           )}
 
+          {/* LOGO */}
           <div>
             <label className={labelClass}>
               Logo
             </label>
 
+            <div
+              className="relative w-36 h-36 rounded-2xl overflow-hidden border-2 border-dashed border-[var(--color-border)] bg-[var(--color-subtle)] cursor-pointer hover:border-red-500 transition-colors"
+              onClick={() =>
+                document
+                  .getElementById("avatar-input")
+                  ?.click()
+              }
+            >
+              {avatarPreview ? (
+                <>
+                  <img
+                    src={avatarPreview}
+                    alt="Vista previa del logo"
+                    className="w-full h-full object-cover"
+                  />
+
+                  <div className="absolute inset-0 bg-black/0 hover:bg-black/30 transition-colors flex items-center justify-center">
+                    <div className="opacity-0 hover:opacity-100 bg-black/70 text-white rounded-full p-2 transition-opacity">
+                      <Camera size={20} />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-[var(--color-muted)]">
+                  <ImagePlus size={32} />
+
+                  <span className="text-xs mt-2 font-medium">
+                    Subir logo
+                  </span>
+                </div>
+              )}
+            </div>
+
             <input
+              id="avatar-input"
               type="file"
               accept="image/*"
-              onChange={(e) =>
-                setAvatarFile(
-                  e.target.files?.[0] || null
-                )
-              }
-              className="w-full text-sm"
+              onChange={handleAvatarChange}
+              className="hidden"
             />
 
-            {avatarUrl && (
-              <p className="text-xs text-[var(--color-muted)] mt-2">
-                Ya tenés un logo cargado.
-              </p>
-            )}
+            <p className="text-xs text-[var(--color-muted)] mt-2">
+              Hacé clic en la imagen para cambiarla.
+            </p>
           </div>
 
+          {/* PORTADA */}
           <div>
             <label className={labelClass}>
               Imagen de portada
             </label>
 
+            <div
+              className="relative w-full h-48 rounded-2xl overflow-hidden border-2 border-dashed border-[var(--color-border)] bg-[var(--color-subtle)] cursor-pointer hover:border-red-500 transition-colors"
+              onClick={() =>
+                document
+                  .getElementById("cover-input")
+                  ?.click()
+              }
+            >
+              {coverPreview ? (
+                <>
+                  <img
+                    src={coverPreview}
+                    alt="Vista previa de portada"
+                    className="w-full h-full object-cover"
+                  />
+
+                  <div className="absolute inset-0 bg-black/0 hover:bg-black/30 transition-colors flex items-center justify-center">
+                    <div className="opacity-0 hover:opacity-100 bg-black/70 text-white rounded-full px-4 py-2 flex items-center gap-2 transition-opacity">
+                      <Camera size={18} />
+                      <span className="text-sm font-medium">
+                        Cambiar portada
+                      </span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-[var(--color-muted)]">
+                  <ImagePlus size={36} />
+
+                  <span className="text-sm mt-2 font-medium">
+                    Subir imagen de portada
+                  </span>
+
+                  <span className="text-xs mt-1">
+                    Recomendado: imagen horizontal
+                  </span>
+                </div>
+              )}
+            </div>
+
             <input
+              id="cover-input"
               type="file"
               accept="image/*"
-              onChange={(e) =>
-                setCoverFile(
-                  e.target.files?.[0] || null
-                )
-              }
-              className="w-full text-sm"
+              onChange={handleCoverChange}
+              className="hidden"
             />
 
-            {coverUrl && (
-              <p className="text-xs text-[var(--color-muted)] mt-2">
-                Ya tenés una portada cargada.
-              </p>
-            )}
+            <p className="text-xs text-[var(--color-muted)] mt-2">
+              Hacé clic en la imagen para cambiarla.
+            </p>
           </div>
 
           {error && (

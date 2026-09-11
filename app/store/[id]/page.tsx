@@ -35,6 +35,7 @@ type Profile = {
   ships: boolean | null;
   has_physical_store: boolean | null;
   address: string | null;
+  status: "activo" | "bloqueado";
 };
 
 type Listing = {
@@ -89,9 +90,6 @@ export default function StorePage() {
   const [reportLoading, setReportLoading] = useState(false);
   const [reportSuccess, setReportSuccess] = useState(false);
   const [reportError, setReportError] = useState("");
-
-  // NUEVO:
-  // Indica que el usuario intentó reportar sin estar registrado.
   const [reportRequiresAuth, setReportRequiresAuth] = useState(false);
 
   useEffect(() => {
@@ -109,29 +107,32 @@ export default function StorePage() {
      * ============================================================
      */
 
-    const { data: profileData, error: profileError } =
-      await supabase
-        .from("profiles")
-        .select(
-          `
-          id,
-          username,
-          avatar_url,
-          bio,
-          business_name,
-          cover_url,
-          city,
-          whatsapp,
-          instagram,
-          facebook,
-          opening_hours,
-          ships,
-          has_physical_store,
-          address
+    const {
+      data: profileData,
+      error: profileError,
+    } = await supabase
+      .from("profiles")
+      .select(
         `
-        )
-        .eq("id", storeId)
-        .single();
+        id,
+        username,
+        avatar_url,
+        bio,
+        business_name,
+        cover_url,
+        city,
+        whatsapp,
+        instagram,
+        facebook,
+        opening_hours,
+        ships,
+        has_physical_store,
+        address,
+        status
+      `
+      )
+      .eq("id", storeId)
+      .single();
 
     if (profileError || !profileData) {
       console.error(
@@ -147,33 +148,55 @@ export default function StorePage() {
 
     /*
      * ============================================================
+     * EMPRENDIMIENTO BLOQUEADO
+     *
+     * IMPORTANTE:
+     * Si el emprendimiento está bloqueado, no cargamos ninguna
+     * publicación ni ninguna imagen de la vidriera.
+     * ============================================================
+     */
+
+    if (profileData.status === "bloqueado") {
+      setProfile(profileData as Profile);
+      setListings([]);
+      setShowcaseImages([]);
+      setShowcaseIndex(0);
+      setLoading(false);
+
+      return;
+    }
+
+    /*
+     * ============================================================
      * PUBLICACIONES
      * ============================================================
      */
 
-    const { data: listingsData, error: listingsError } =
-      await supabase
-        .from("listings")
-        .select(
-          `
-          id,
-          title,
-          description,
-          price,
-          category,
-          image_url,
-          images,
-          created_at,
-          sold,
-          type
+    const {
+      data: listingsData,
+      error: listingsError,
+    } = await supabase
+      .from("listings")
+      .select(
         `
-        )
-        .eq("seller_id", storeId)
-        .eq("sold", false)
-        .order("created_at", {
-          ascending: false,
-        })
-        .limit(5);
+        id,
+        title,
+        description,
+        price,
+        category,
+        image_url,
+        images,
+        created_at,
+        sold,
+        type
+      `
+      )
+      .eq("seller_id", storeId)
+      .eq("sold", false)
+      .order("created_at", {
+        ascending: false,
+      })
+      .limit(5);
 
     if (listingsError) {
       console.error(
@@ -301,15 +324,6 @@ export default function StorePage() {
     setReportDescription("");
     setReportRequiresAuth(false);
 
-    /*
-     * ==========================================================
-     * VERIFICAR SESIÓN
-     *
-     * getSession() permite comprobar si existe una sesión sin
-     * tratar la ausencia de sesión como un error.
-     * ==========================================================
-     */
-
     const {
       data: sessionData,
       error: sessionError,
@@ -330,24 +344,12 @@ export default function StorePage() {
       return;
     }
 
-    /*
-     * ==========================================================
-     * USUARIO NO REGISTRADO
-     * ==========================================================
-     */
-
     if (!sessionData.session?.user) {
       setReportRequiresAuth(true);
       setShowReportModal(true);
 
       return;
     }
-
-    /*
-     * ==========================================================
-     * EVITAR AUTO-REPORTE
-     * ==========================================================
-     */
 
     if (sessionData.session.user.id === storeId) {
       setReportError(
@@ -358,12 +360,6 @@ export default function StorePage() {
 
       return;
     }
-
-    /*
-     * ==========================================================
-     * USUARIO AUTENTICADO
-     * ==========================================================
-     */
 
     setShowReportModal(true);
   }
@@ -402,12 +398,6 @@ export default function StorePage() {
     setReportError("");
 
     try {
-      /*
-       * ==========================================================
-       * VERIFICAR USUARIO
-       * ==========================================================
-       */
-
       const {
         data: userData,
         error: userError,
@@ -438,12 +428,6 @@ export default function StorePage() {
         return;
       }
 
-      /*
-       * ==========================================================
-       * EVITAR AUTO-REPORTE
-       * ==========================================================
-       */
-
       if (user.id === profile.id) {
         setReportError(
           "No podés reportar tu propio emprendimiento."
@@ -451,12 +435,6 @@ export default function StorePage() {
 
         return;
       }
-
-      /*
-       * ==========================================================
-       * VERIFICAR REPORTE DUPLICADO
-       * ==========================================================
-       */
 
       const {
         data: existingReport,
@@ -483,12 +461,6 @@ export default function StorePage() {
         return;
       }
 
-      /*
-       * ==========================================================
-       * INSERTAR REPORTE
-       * ==========================================================
-       */
-
       const { error: insertError } =
         await supabase
           .from("reports")
@@ -513,12 +485,6 @@ export default function StorePage() {
 
         throw insertError;
       }
-
-      /*
-       * ==========================================================
-       * ÉXITO
-       * ==========================================================
-       */
 
       setReportSuccess(true);
     } catch (error) {
@@ -545,8 +511,6 @@ export default function StorePage() {
     return (
       <div className="min-h-screen bg-black text-white">
 
-        {/* HEADER */}
-
         <nav className="sticky top-0 z-40 border-b border-white/10 bg-black/95 backdrop-blur-xl">
 
           <div className="mx-auto flex h-16 max-w-[1200px] items-center px-4 md:px-8">
@@ -563,8 +527,6 @@ export default function StorePage() {
 
         <main className="mx-auto max-w-[1200px] px-4 pb-24 md:px-8">
 
-          {/* IDENTIDAD */}
-
           <section className="pt-8 sm:pt-10">
 
             <div className="flex flex-col items-center text-center">
@@ -578,8 +540,6 @@ export default function StorePage() {
             </div>
 
           </section>
-
-          {/* INFO */}
 
           <section className="mt-8 px-0 sm:px-4 md:px-8">
 
@@ -611,8 +571,6 @@ export default function StorePage() {
 
           </section>
 
-          {/* VIDRIERA */}
-
           <section className="mt-14">
 
             <div className="flex items-center gap-4">
@@ -628,8 +586,6 @@ export default function StorePage() {
             <div className="mt-5 aspect-[16/8] animate-pulse rounded-2xl bg-[#111111] sm:aspect-[16/7]" />
 
           </section>
-
-          {/* PUBLICACIONES */}
 
           <section className="mt-14">
 
@@ -756,14 +712,106 @@ export default function StorePage() {
     );
   }
 
+  /*
+   * ============================================================
+   * EMPRENDIMIENTO BLOQUEADO
+   * ============================================================
+   */
+
+  if (profile.status === "bloqueado") {
+    return (
+      <div className="min-h-screen bg-black text-white">
+
+        <nav className="sticky top-0 z-40 border-b border-white/10 bg-black/95 backdrop-blur-xl">
+
+          <div className="mx-auto flex h-16 max-w-[1200px] items-center px-4 md:px-8">
+
+            <Link
+              href="/"
+              className="
+                inline-flex
+                items-center
+                gap-2
+                text-sm
+                font-bold
+                text-white
+                no-underline
+                transition-colors
+                hover:text-[#B4232D]
+              "
+            >
+              <ArrowLeft size={18} />
+              Volver
+            </Link>
+
+          </div>
+
+        </nav>
+
+        <main className="mx-auto flex min-h-[calc(100vh-64px)] max-w-[1200px] items-center px-4 py-16 md:px-8">
+
+          <div className="w-full rounded-2xl border border-white/10 bg-[#0B0B0B] px-6 py-20 text-center">
+
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-500/10">
+
+              <Store
+                size={32}
+                className="text-[#B4232D]"
+              />
+
+            </div>
+
+            <h1 className="mt-6 text-2xl font-black uppercase tracking-tight sm:text-3xl">
+              Emprendimiento no disponible
+            </h1>
+
+            <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-[#777777] sm:text-base">
+              Este emprendimiento no se encuentra disponible actualmente.
+            </p>
+
+            <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-[#555555]">
+              Es posible que haya sido temporalmente deshabilitado por motivos de moderación.
+            </p>
+
+            <Link
+              href="/"
+              className="
+                mt-8
+                inline-flex
+                items-center
+                gap-2
+                rounded-xl
+                border
+                border-[#B4232D]
+                bg-[#B4232D]
+                px-5
+                py-3
+                text-sm
+                font-black
+                uppercase
+                tracking-wide
+                text-white
+                no-underline
+                transition-all
+                hover:bg-[#9F1F27]
+              "
+            >
+              <ArrowLeft size={16} />
+              Volver al inicio
+            </Link>
+
+          </div>
+
+        </main>
+
+      </div>
+    );
+  }
+
   const businessName =
     profile.business_name?.trim() ||
     profile.username?.trim() ||
     "Emprendimiento";
-
-  /*
-   * La imagen actual de la vidriera.
-   */
 
   const currentShowcase =
     showcaseImages[showcaseIndex];
@@ -820,14 +868,12 @@ export default function StorePage() {
       <main className="mx-auto max-w-[1200px] px-4 pb-24 md:px-8">
 
         {/* ========================================================= */}
-        {/* IDENTIDAD DEL EMPRENDIMIENTO */}
+        {/* IDENTIDAD */}
         {/* ========================================================= */}
 
         <section className="pt-8 sm:pt-10 md:pt-12">
 
           <div className="flex flex-col items-center text-center">
-
-            {/* LOGO */}
 
             <div
               className="
@@ -861,8 +907,6 @@ export default function StorePage() {
 
             </div>
 
-            {/* NOMBRE */}
-
             <h1
               className="
                 mt-6
@@ -879,8 +923,6 @@ export default function StorePage() {
               {businessName}
             </h1>
 
-            {/* USERNAME */}
-
             {profile.username && (
               <span className="mt-2 text-sm font-bold text-[#777777]">
                 @{profile.username.replace("@", "")}
@@ -892,7 +934,7 @@ export default function StorePage() {
         </section>
 
         {/* ========================================================= */}
-        {/* INFORMACIÓN DEL EMPRENDIMIENTO */}
+        {/* INFORMACIÓN */}
         {/* ========================================================= */}
 
         <section className="mt-8 px-0 sm:px-4 md:px-8">
@@ -910,10 +952,6 @@ export default function StorePage() {
               md:p-7
             "
           >
-
-            {/* ===================================================== */}
-            {/* REPORTAR EMPRENDIMIENTO */}
-            {/* ===================================================== */}
 
             <button
               type="button"
@@ -945,15 +983,11 @@ export default function StorePage() {
               <Flag size={16} />
             </button>
 
-            {/* DESCRIPCIÓN */}
-
             {profile.bio && (
               <p className="max-w-3xl pr-12 text-sm leading-6 text-[#B5B5B5] sm:text-base">
                 {profile.bio}
               </p>
             )}
-
-            {/* DATOS */}
 
             <div className="mt-5 flex flex-wrap gap-x-5 gap-y-3 text-xs font-semibold text-[#999999]">
 
@@ -999,8 +1033,6 @@ export default function StorePage() {
               )}
 
             </div>
-
-            {/* CONTACTO */}
 
             <div className="mt-6 flex flex-wrap gap-2">
 
@@ -1110,8 +1142,6 @@ export default function StorePage() {
         {showcaseImages.length > 0 && (
           <section className="mt-14 sm:mt-16 md:mt-20">
 
-            {/* TÍTULO */}
-
             <div className="mb-6 flex items-center gap-4">
 
               <div className="h-1 flex-1 rounded-full bg-[#B4232D]" />
@@ -1132,8 +1162,6 @@ export default function StorePage() {
 
             </div>
 
-            {/* CARRUSEL */}
-
             <div className="relative">
 
               <div
@@ -1151,8 +1179,6 @@ export default function StorePage() {
                 "
               >
 
-                {/* IMAGEN REAL DE SUPABASE */}
-
                 <img
                   key={currentShowcase.id}
                   src={currentShowcase.image_url}
@@ -1166,11 +1192,7 @@ export default function StorePage() {
                   "
                 />
 
-                {/* DEGRADADO */}
-
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-
-                {/* TEXTO */}
 
                 <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-7 md:p-9">
 
@@ -1183,8 +1205,6 @@ export default function StorePage() {
                   </h3>
 
                 </div>
-
-                {/* FLECHA IZQUIERDA */}
 
                 {showcaseImages.length > 1 && (
                   <button
@@ -1214,8 +1234,6 @@ export default function StorePage() {
                     <ArrowLeft size={18} />
                   </button>
                 )}
-
-                {/* FLECHA DERECHA */}
 
                 {showcaseImages.length > 1 && (
                   <button
@@ -1247,8 +1265,6 @@ export default function StorePage() {
                 )}
 
               </div>
-
-              {/* INDICADORES */}
 
               {showcaseImages.length > 1 && (
                 <div className="mt-5 flex justify-center gap-2">
@@ -1365,8 +1381,6 @@ export default function StorePage() {
                     "
                   >
 
-                    {/* IMAGEN */}
-
                     <div className="relative aspect-square overflow-hidden rounded-t-2xl bg-[#222222]">
 
                       {image ? (
@@ -1405,8 +1419,6 @@ export default function StorePage() {
 
                     </div>
 
-                    {/* INFO */}
-
                     <div className="p-3 sm:p-4">
 
                       <h3 className="line-clamp-2 min-h-[36px] text-xs font-black leading-4 text-white sm:min-h-[40px] sm:text-sm sm:leading-5">
@@ -1443,8 +1455,6 @@ export default function StorePage() {
 
             </div>
 
-            {/* CANTIDAD */}
-
             <div className="mt-6 text-center">
 
               <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#666666]">
@@ -1463,15 +1473,13 @@ export default function StorePage() {
       </main>
 
       {/* ========================================================= */}
-      {/* MODAL REPORTAR EMPRENDIMIENTO */}
+      {/* MODAL REPORTAR */}
       {/* ========================================================= */}
 
       {showReportModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 px-4 py-6 backdrop-blur-sm">
 
           <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-white/10 bg-[#111111] p-6 shadow-2xl sm:p-7">
-
-            {/* CERRAR */}
 
             <button
               type="button"
@@ -1502,10 +1510,6 @@ export default function StorePage() {
             {!reportSuccess ? (
 
               reportRequiresAuth ? (
-
-                /* ==================================================
-                   USUARIO NO REGISTRADO
-                   ================================================== */
 
                 <div className="flex min-h-[330px] flex-col items-center justify-center px-2 py-8 text-center">
 
@@ -1546,8 +1550,6 @@ export default function StorePage() {
 
                 <>
 
-                  {/* TÍTULO */}
-
                   <div className="pr-10">
 
                     <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-red-500/10 text-red-500">
@@ -1564,8 +1566,6 @@ export default function StorePage() {
                     </p>
 
                   </div>
-
-                  {/* MOTIVOS */}
 
                   <div className="mt-7">
 
@@ -1647,8 +1647,6 @@ export default function StorePage() {
 
                   </div>
 
-                  {/* DESCRIPCIÓN */}
-
                   <div className="mt-6">
 
                     <div className="flex items-center justify-between gap-3">
@@ -1704,15 +1702,11 @@ export default function StorePage() {
 
                   </div>
 
-                  {/* ERROR */}
-
                   {reportError && (
                     <div className="mt-5 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-medium leading-6 text-red-300">
                       {reportError}
                     </div>
                   )}
-
-                  {/* BOTONES */}
 
                   <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
 
@@ -1785,10 +1779,6 @@ export default function StorePage() {
               )
 
             ) : (
-
-              /* ==================================================
-                 REPORTE ENVIADO
-                 ================================================== */
 
               <div className="flex min-h-[330px] flex-col items-center justify-center px-2 py-8 text-center">
 

@@ -2,17 +2,11 @@ import { supabase } from "./supabase";
 
 export async function signUp(
   email: string,
-  password: string,
-  username: string
+  password: string
 ) {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: {
-      data: {
-        username: username.trim(),
-      },
-    },
   });
 
   if (error) throw error;

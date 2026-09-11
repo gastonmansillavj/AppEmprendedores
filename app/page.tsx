@@ -5,8 +5,6 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   Search,
-  ChevronLeft,
-  ChevronRight,
   Store,
   PackageSearch,
 } from "lucide-react";
@@ -14,6 +12,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import BottomNav from "./components/ui/BottomNav";
 import StoreSection from "./components/home/StoreSection";
+import HomeBanner from "./components/home/HomeBanner";
 
 type StoreData = {
   id: string;
@@ -85,61 +84,6 @@ const serviceCategories = [
   "Hogar",
   "Educación",
   "Otros",
-];
-
-/*
- * NO TOCAR
- * Carrusel principal
- */
-const carouselCategories = [
-  {
-    type: "Productos",
-    name: "Gastronomía",
-    image:
-      "https://images.unsplash.com/photo-1504674900247-0877df9cc32?w=1200",
-  },
-  {
-    type: "Productos",
-    name: "Indumentaria",
-    image:
-      "https://images.unsplash.com/photo-1445205170230-053b83016050?w=1200",
-  },
-  {
-    type: "Productos",
-    name: "Accesorios",
-    image:
-      "https://images.unsplash.com/photo-1523779917675-b6ed3a42a561?w=1200",
-  },
-  {
-    type: "Productos",
-    name: "Hogar y decoración",
-    image:
-      "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?w=1200",
-  },
-  {
-    type: "Productos",
-    name: "Arte y artesanías",
-    image:
-      "https://images.unsplash.com/photo-1452860606245-08befc0ff44b?w=1200",
-  },
-  {
-    type: "Servicios",
-    name: "Belleza y estética",
-    image:
-      "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=1200",
-  },
-  {
-    type: "Servicios",
-    name: "Fotografía y video",
-    image:
-      "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=1200",
-  },
-  {
-    type: "Servicios",
-    name: "Eventos",
-    image:
-      "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=1200",
-  },
 ];
 
 function formatPrice(price: number) {
@@ -408,9 +352,6 @@ export default function Home() {
   const [searchLoading, setSearchLoading] =
     useState(false);
 
-  const [carouselIndex, setCarouselIndex] =
-    useState(0);
-
   /* =====================================================
      FAVORITOS
      ===================================================== */
@@ -593,7 +534,8 @@ export default function Home() {
         avatar_url,
         bio,
         city
-      `);
+      `)
+      .eq("status", "activo");
 
     if (
       profilesError ||
@@ -731,6 +673,12 @@ export default function Home() {
 
     setSearchLoading(true);
 
+    /*
+     * EMPRENDIMIENTOS
+     *
+     * Solo buscamos emprendimientos activos.
+     */
+
     const {
       data: profiles,
       error: profilesError,
@@ -744,6 +692,7 @@ export default function Home() {
         bio,
         city
       `)
+      .eq("status", "activo")
       .or(
         `business_name.ilike.%${cleanQuery}%,username.ilike.%${cleanQuery}%,bio.ilike.%${cleanQuery}%`
       )
@@ -755,6 +704,13 @@ export default function Home() {
         profilesError
       );
     }
+
+    /*
+     * PRODUCTOS
+     *
+     * Primero buscamos las publicaciones.
+     * Después verificamos que el vendedor siga activo.
+     */
 
     const {
       data: listings,
@@ -804,6 +760,10 @@ export default function Home() {
         ),
       ];
 
+      /*
+       * Solo obtenemos vendedores activos.
+       */
+
       const {
         data: sellers,
         error: sellersError,
@@ -815,6 +775,7 @@ export default function Home() {
           username,
           avatar_url
         `)
+        .eq("status", "activo")
         .in(
           "id",
           sellerIds
@@ -853,16 +814,28 @@ export default function Home() {
         }
       );
 
+      /*
+       * Filtramos las publicaciones
+       * para que solo queden las de
+       * vendedores activos.
+       */
+
       productsWithSeller =
-        listings.map(
-          (listing) => ({
-            ...listing,
-            seller:
-              sellersMap.get(
-                listing.seller_id
-              ) || null,
-          })
-        );
+        listings
+          .filter((listing) =>
+            sellersMap.has(
+              listing.seller_id
+            )
+          )
+          .map(
+            (listing) => ({
+              ...listing,
+              seller:
+                sellersMap.get(
+                  listing.seller_id
+                ) || null,
+            })
+          );
     }
 
     setSearchStores(
@@ -927,29 +900,6 @@ export default function Home() {
     return () =>
       clearTimeout(timeout);
   }, [search]);
-
-  /* =====================================================
-     CARRUSEL AUTOMÁTICO
-     ===================================================== */
-
-  useEffect(() => {
-    const interval =
-      setInterval(() => {
-        setCarouselIndex(
-          (current) =>
-            (current + 1) %
-            carouselCategories.length
-        );
-      }, 4000);
-
-    return () =>
-      clearInterval(interval);
-  }, []);
-
-  const currentCarousel =
-    carouselCategories[
-      carouselIndex
-    ];
 
   const newStores =
     useMemo(() => {
@@ -1030,6 +980,7 @@ export default function Home() {
               >
 
                 {userProfile?.avatar_url ? (
+
                   <Image
                     src={
                       userProfile.avatar_url
@@ -1042,11 +993,14 @@ export default function Home() {
                     height={44}
                     className="w-full h-full object-cover"
                   />
+
                 ) : (
+
                   <Store
                     size={20}
                     className="text-[#B4232D]"
                   />
+
                 )}
 
               </Link>
@@ -1087,113 +1041,10 @@ export default function Home() {
           <>
 
             {/* =====================================================
-                CARRUSEL
+                BANNER
                 ===================================================== */}
 
-            <section className="mb-10">
-
-              <div className="relative overflow-hidden rounded-3xl h-[220px] md:h-[300px] border border-[#292929] bg-[#111111] shadow-[0_12px_40px_rgba(0,0,0,0.35)]">
-
-                <Image
-                  src={
-                    currentCarousel.image
-                  }
-                  alt={
-                    currentCarousel.name
-                  }
-                  fill
-                  className="object-cover"
-                  priority
-                />
-
-                <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/40 to-black/20" />
-
-                <div className="absolute inset-0 flex flex-col justify-center px-7 md:px-12 text-white">
-
-                  <span className="text-xs md:text-sm uppercase tracking-[0.2em] font-bold text-gray-300">
-                    {
-                      currentCarousel.type
-                    }
-                  </span>
-
-                  <h1 className="text-3xl md:text-5xl font-black tracking-tight mt-2 max-w-xl">
-                    {
-                      currentCarousel.name
-                    }
-                  </h1>
-
-                  <p className="mt-3 text-sm md:text-base text-gray-200 max-w-md">
-                    Descubrí emprendimientos
-                    de tu ciudad
-                  </p>
-
-                </div>
-
-                <button
-                  onClick={() =>
-                    setCarouselIndex(
-                      (current) =>
-                        current === 0
-                          ? carouselCategories.length -
-                            1
-                          : current - 1
-                    )
-                  }
-                  className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl bg-black/60 border border-white/20 flex items-center justify-center text-white hover:bg-[#B4232D] hover:border-[#B4232D] transition-all"
-                  aria-label="Anterior"
-                >
-                  <ChevronLeft
-                    size={20}
-                  />
-                </button>
-
-                <button
-                  onClick={() =>
-                    setCarouselIndex(
-                      (current) =>
-                        (current + 1) %
-                        carouselCategories.length
-                    )
-                  }
-                  className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl bg-black/60 border border-white/20 flex items-center justify-center text-white hover:bg-[#B4232D] hover:border-[#B4232D] transition-all"
-                  aria-label="Siguiente"
-                >
-                  <ChevronRight
-                    size={20}
-                  />
-                </button>
-
-                <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2">
-
-                  {carouselCategories.map(
-                    (_, index) => (
-
-                      <button
-                        key={index}
-                        onClick={() =>
-                          setCarouselIndex(
-                            index
-                          )
-                        }
-                        className={`h-1.5 rounded-full transition-all duration-300 ${
-                          index ===
-                          carouselIndex
-                            ? "bg-[#B4232D] w-7"
-                            : "bg-white/40 w-2"
-                        }`}
-                        aria-label={`Ir a diapositiva ${
-                          index + 1
-                        }`}
-                      />
-
-                    )
-                  )}
-
-                </div>
-
-              </div>
-
-            </section>
+            <HomeBanner />
 
             {/* =====================================================
                 LOADING
@@ -1230,6 +1081,7 @@ export default function Home() {
                       </div>
 
                     </section>
+
                   )
                 )}
 
@@ -1244,10 +1096,12 @@ export default function Home() {
               <div className="py-20 text-center">
 
                 <div className="w-16 h-16 mx-auto rounded-2xl bg-[#111111] border border-[#252525] flex items-center justify-center">
+
                   <Store
                     size={32}
                     className="text-gray-600"
                   />
+
                 </div>
 
                 <h2 className="text-xl font-bold text-white mt-5">

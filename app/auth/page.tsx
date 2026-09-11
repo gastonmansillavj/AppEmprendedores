@@ -3,6 +3,7 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { Eye, EyeOff } from "lucide-react";
 import Button from "../components/ui/Button";
 import { signIn, signUp } from "../../lib/auth";
 import { supabase } from "../../lib/supabase";
@@ -25,7 +26,11 @@ function AuthForm() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [username, setUsername] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -36,8 +41,22 @@ function AuthForm() {
     setLoading(true);
 
     try {
+      // ============================
+      // REGISTRO
+      // ============================
+
       if (mode === "signup") {
-        await signUp(email, password, username);
+        if (password.length < 6) {
+          throw new Error(
+            "La contraseña debe tener al menos 6 caracteres."
+          );
+        }
+
+        if (password !== confirmPassword) {
+          throw new Error("Las contraseñas no coinciden.");
+        }
+
+        await signUp(email, password);
 
         setError(
           "Cuenta creada. Revisá tu email para confirmar tu cuenta."
@@ -69,7 +88,7 @@ function AuthForm() {
 
       /*
        * Si no tiene nombre de emprendimiento,
-       * consideramos que todavía no configuró su perfil.
+       * todavía no configuró su perfil.
        */
       if (!profile?.business_name?.trim()) {
         router.push("/profile/edit");
@@ -122,22 +141,7 @@ function AuthForm() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
 
-          {mode === "signup" && (
-            <div>
-              <label className={labelClass}>
-                Nombre de usuario
-              </label>
-
-              <input
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                placeholder="miemprendimiento"
-                className={inputClass}
-              />
-            </div>
-          )}
-
+          {/* EMAIL */}
           <div>
             <label className={labelClass}>
               Email
@@ -153,27 +157,110 @@ function AuthForm() {
             />
           </div>
 
+          {/* CONTRASEÑA */}
           <div>
             <label className={labelClass}>
               Contraseña
             </label>
 
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="••••••••"
-              className={inputClass}
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+                placeholder="••••••••"
+                className={`${inputClass} pr-11`}
+              />
+
+              <button
+                type="button"
+                onClick={() => setShowPassword((value) => !value)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
+                aria-label={
+                  showPassword
+                    ? "Ocultar contraseña"
+                    : "Mostrar contraseña"
+                }
+              >
+                {showPassword ? (
+                  <EyeOff size={18} />
+                ) : (
+                  <Eye size={18} />
+                )}
+              </button>
+            </div>
+
+            {!isLogin && (
+              <p className="text-xs text-[var(--color-muted)] mt-1">
+                Mínimo 6 caracteres.
+              </p>
+            )}
           </div>
 
+          {/* REPETIR CONTRASEÑA */}
+          {!isLogin && (
+            <div>
+              <label className={labelClass}>
+                Repetir contraseña
+              </label>
+
+              <div className="relative">
+                <input
+                  type={
+                    showConfirmPassword
+                      ? "text"
+                      : "password"
+                  }
+                  value={confirmPassword}
+                  onChange={(e) =>
+                    setConfirmPassword(e.target.value)
+                  }
+                  required
+                  minLength={6}
+                  placeholder="••••••••"
+                  className={`${inputClass} pr-11`}
+                />
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowConfirmPassword(
+                      (value) => !value
+                    )
+                  }
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
+                  aria-label={
+                    showConfirmPassword
+                      ? "Ocultar confirmación de contraseña"
+                      : "Mostrar confirmación de contraseña"
+                  }
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff size={18} />
+                  ) : (
+                    <Eye size={18} />
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* MENSAJE */}
           {error && (
-            <p className="text-red-500 text-sm">
+            <p
+              className={`text-sm ${
+                error.startsWith("Cuenta creada")
+                  ? "text-green-500"
+                  : "text-red-500"
+              }`}
+            >
               {error}
             </p>
           )}
 
+          {/* BOTÓN */}
           <Button
             type="submit"
             disabled={loading}
@@ -187,6 +274,7 @@ function AuthForm() {
           </Button>
         </form>
 
+        {/* CAMBIAR LOGIN / REGISTRO */}
         <p className="text-center text-sm text-[var(--color-muted)] mt-4">
           {isLogin
             ? "¿No tenés una cuenta?"
@@ -196,11 +284,19 @@ function AuthForm() {
             type="button"
             onClick={() => {
               setError("");
-              setMode(isLogin ? "signup" : "login");
+              setPassword("");
+              setConfirmPassword("");
+              setShowPassword(false);
+              setShowConfirmPassword(false);
+              setMode(
+                isLogin ? "signup" : "login"
+              );
             }}
             className="text-[var(--color-brand)] font-semibold"
           >
-            {isLogin ? "Registrarse" : "Iniciar sesión"}
+            {isLogin
+              ? "Registrarse"
+              : "Iniciar sesión"}
           </button>
         </p>
       </div>

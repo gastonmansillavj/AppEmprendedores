@@ -5,7 +5,6 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
-  Heart,
   MessageCircle,
   Store,
   ChevronLeft,
@@ -540,16 +539,6 @@ export default function ListingPage() {
                   />
                 </div>
               )}
-
-              {/* FAVORITO */}
-
-              <button
-                type="button"
-                aria-label="Agregar a favoritos"
-                className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm transition-colors hover:bg-red-600"
-              >
-                <Heart size={20} />
-              </button>
 
               {/* FLECHAS */}
 
