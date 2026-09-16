@@ -5,8 +5,8 @@ import { NotificationsProvider } from "./components/NotificationsProvider";
 import BottomNav from "./components/ui/BottomNav";
 
 export const metadata: Metadata = {
-  title: "AppEmprendedores",
-  description: "Marketplace de emprendimientos de Rafaela.",
+  title: "EMPREespacio",
+  description: "El espacio donde crecen los emprendimientos de Rafaela.",
 };
 
 const themeInitScript = `
@@ -39,4 +39,3 @@ export default function RootLayout({
     </html>
   );
 }
-

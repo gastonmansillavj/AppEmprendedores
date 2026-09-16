@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -353,6 +354,26 @@ export default function Home() {
     useState(false);
 
   /* =====================================================
+     CONTROL DE PANTALLA
+     ===================================================== */
+
+  const [isDesktop, setIsDesktop] =
+    useState(false);
+
+  /* =====================================================
+     AUTENTICACIÓN
+     ===================================================== */
+
+  const [authLoading, setAuthLoading] =
+    useState(true);
+
+  const [isLoggedIn, setIsLoggedIn] =
+    useState(false);
+
+  const [currentUserId, setCurrentUserId] =
+    useState<string | null>(null);
+
+  /* =====================================================
      FAVORITOS
      ===================================================== */
 
@@ -366,11 +387,29 @@ export default function Home() {
   const [userProfile, setUserProfile] =
     useState<UserProfile | null>(null);
 
-  const [isLoggedIn, setIsLoggedIn] =
-    useState(false);
+  /* =====================================================
+     DETECTAR PC / CELULAR
+     ===================================================== */
 
-  const [currentUserId, setCurrentUserId] =
-    useState<string | null>(null);
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsDesktop(window.innerWidth >= 768);
+    };
+
+    checkScreenSize();
+
+    window.addEventListener(
+      "resize",
+      checkScreenSize
+    );
+
+    return () => {
+      window.removeEventListener(
+        "resize",
+        checkScreenSize
+      );
+    };
+  }, []);
 
   async function fetchUserProfile() {
     const {
@@ -381,6 +420,7 @@ export default function Home() {
       setIsLoggedIn(false);
       setUserProfile(null);
       setCurrentUserId(null);
+      setAuthLoading(false);
       return;
     }
 
@@ -407,6 +447,8 @@ export default function Home() {
     setUserProfile(
       data as UserProfile | null
     );
+
+    setAuthLoading(false);
   }
 
   /* =====================================================
@@ -673,12 +715,6 @@ export default function Home() {
 
     setSearchLoading(true);
 
-    /*
-     * EMPRENDIMIENTOS
-     *
-     * Solo buscamos emprendimientos activos.
-     */
-
     const {
       data: profiles,
       error: profilesError,
@@ -704,13 +740,6 @@ export default function Home() {
         profilesError
       );
     }
-
-    /*
-     * PRODUCTOS
-     *
-     * Primero buscamos las publicaciones.
-     * Después verificamos que el vendedor siga activo.
-     */
 
     const {
       data: listings,
@@ -759,10 +788,6 @@ export default function Home() {
           )
         ),
       ];
-
-      /*
-       * Solo obtenemos vendedores activos.
-       */
 
       const {
         data: sellers,
@@ -814,12 +839,6 @@ export default function Home() {
         }
       );
 
-      /*
-       * Filtramos las publicaciones
-       * para que solo queden las de
-       * vendedores activos.
-       */
-
       productsWithSeller =
         listings
           .filter((listing) =>
@@ -850,7 +869,7 @@ export default function Home() {
   }
 
   /* =====================================================
-     CARGAR HOME
+     CARGAR HOME + AUTENTICACIÓN
      ===================================================== */
 
   useEffect(() => {
@@ -862,9 +881,9 @@ export default function Home() {
       data: authListener,
     } =
       supabase.auth.onAuthStateChange(
-        () => {
-          fetchUserProfile();
-          fetchFavorites();
+        async () => {
+          await fetchUserProfile();
+          await fetchFavorites();
         }
       );
 
@@ -928,30 +947,39 @@ export default function Home() {
           ===================================================== */}
 
       <header className="sticky top-0 z-50 bg-black/95 backdrop-blur-xl border-b border-[#242424]">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3">
+          <div className="flex items-center gap-2 md:gap-5">
 
-        <div className="max-w-7xl mx-auto px-4 py-3">
-
-          <div className="flex items-center gap-3 md:gap-5">
+            {/* LOGO + NOMBRE */}
 
             <Link
               href="/"
-              className="font-black tracking-tight text-lg md:text-xl shrink-0 text-white"
+              className="flex items-center gap-2 md:gap-3 shrink-0"
+              aria-label="EMPREespacio"
             >
-              <span className="text-[#B4232D]">
-                App
-              </span>
-              Emprendedores
+              <Image
+                src="/logo.png"
+                alt="EMPREespacio"
+                width={56}
+                height={56}
+                priority
+                className="w-11 h-11 sm:w-12 sm:h-12 md:w-14 md:h-14 object-contain shrink-0"
+              />
+
+              {isDesktop && (
+                <span className="font-black tracking-tight text-xl text-white whitespace-nowrap">
+                  <span className="text-[#B4232D]">
+                    Empre
+                  </span>
+                  Espacio
+                </span>
+              )}
             </Link>
 
-            <div className="flex-1 flex justify-center min-w-0">
+            {/* BUSCADOR */}
 
-              <div className="relative w-full max-w-[650px]">
-
-                <Search
-                  size={18}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"
-                />
-
+            <div className="flex-1 min-w-0">
+              <div className="relative w-full max-w-[650px] mx-auto">
                 <input
                   type="text"
                   value={search}
@@ -961,65 +989,64 @@ export default function Home() {
                     )
                   }
                   placeholder="Buscar emprendimientos o productos..."
-                  className="w-full h-11 pl-11 pr-4 rounded-xl border border-[#292929] bg-[#111111] text-white placeholder:text-gray-600 outline-none focus:border-[#B4232D] focus:ring-1 focus:ring-[#B4232D]/30 transition-all"
+                  className="w-full h-10 md:h-11 pl-3 md:pl-4 pr-10 md:pr-11 rounded-xl border border-[#292929] bg-[#111111] text-white placeholder:text-gray-600 outline-none focus:border-[#B4232D] focus:ring-1 focus:ring-[#B4232D]/30 transition-all text-sm md:text-base"
                 />
 
+                <Search
+                  size={18}
+                  className="absolute right-3 md:right-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+                />
               </div>
-
             </div>
 
-            {isLoggedIn ? (
+            {/* USUARIO */}
 
-              <Link
-                href="/account"
-                className="shrink-0 w-10 h-10 md:w-11 md:h-11 rounded-xl overflow-hidden border border-[#292929] bg-[#151515] flex items-center justify-center hover:border-[#B4232D] transition-colors"
-                aria-label={
-                  userProfile?.business_name ||
-                  "Mi perfil"
-                }
-              >
+            {!authLoading &&
+              (isLoggedIn ? (
+                <Link
+                  href="/account"
+                  className="shrink-0 w-10 h-10 md:w-11 md:h-11 rounded-xl overflow-hidden border border-[#292929] bg-[#151515] flex items-center justify-center hover:border-[#B4232D] transition-colors"
+                  aria-label={
+                    userProfile?.business_name ||
+                    "Mi perfil"
+                  }
+                >
+                  {userProfile?.avatar_url ? (
+                    <Image
+                      src={
+                        userProfile.avatar_url
+                      }
+                      alt={
+                        userProfile.business_name ||
+                        "Mi emprendimiento"
+                      }
+                      width={44}
+                      height={44}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Store
+                      size={20}
+                      className="text-[#B4232D]"
+                    />
+                  )}
+                </Link>
+              ) : (
+                <Link
+                  href="/auth"
+                  className="shrink-0 bg-[#B4232D] hover:bg-[#951D26] text-white px-3 md:px-4 py-2.5 rounded-xl font-bold text-xs md:text-sm transition-colors"
+                >
+                  <span className="md:hidden">
+                    Entrar
+                  </span>
 
-                {userProfile?.avatar_url ? (
-
-                  <Image
-                    src={
-                      userProfile.avatar_url
-                    }
-                    alt={
-                      userProfile.business_name ||
-                      "Mi emprendimiento"
-                    }
-                    width={44}
-                    height={44}
-                    className="w-full h-full object-cover"
-                  />
-
-                ) : (
-
-                  <Store
-                    size={20}
-                    className="text-[#B4232D]"
-                  />
-
-                )}
-
-              </Link>
-
-            ) : (
-
-              <a
-                href="/auth"
-                className="shrink-0 bg-[#B4232D] hover:bg-[#951D26] text-white px-4 py-2.5 rounded-xl font-bold text-sm transition-colors"
-              >
-                Registrarse
-              </a>
-
-            )}
-
+                  <span className="hidden md:inline">
+                    Registrarse
+                  </span>
+                </Link>
+              ))}
           </div>
-
         </div>
-
       </header>
 
       {/* =====================================================
@@ -1027,19 +1054,14 @@ export default function Home() {
           ===================================================== */}
 
       <main className="max-w-7xl mx-auto px-4 pt-7">
-
         {hasSearch ? (
-
           <SearchResults
             stores={searchStores}
             products={searchProducts}
             loading={searchLoading}
           />
-
         ) : (
-
           <>
-
             {/* =====================================================
                 BANNER
                 ===================================================== */}
@@ -1051,100 +1073,67 @@ export default function Home() {
                 ===================================================== */}
 
             {loading ? (
-
               <div className="space-y-10">
-
                 {[1, 2, 3].map(
                   (section) => (
-
                     <section
                       key={section}
                     >
-
                       <div className="h-7 w-52 bg-[#171717] rounded-lg mb-2 animate-pulse" />
 
                       <div className="h-4 w-72 bg-[#131313] rounded mb-5 animate-pulse" />
 
                       <div className="flex gap-4 overflow-hidden">
-
                         {[1, 2, 3, 4].map(
                           (card) => (
-
                             <div
                               key={card}
                               className="min-w-[250px] h-[280px] bg-[#111111] border border-[#202020] rounded-2xl animate-pulse"
                             />
-
                           )
                         )}
-
                       </div>
-
                     </section>
-
                   )
                 )}
-
               </div>
-
             ) : stores.length === 0 ? (
-
-              /* =====================================================
-                 ESTADO VACÍO
-                 ===================================================== */
-
               <div className="py-20 text-center">
-
                 <div className="w-16 h-16 mx-auto rounded-2xl bg-[#111111] border border-[#252525] flex items-center justify-center">
-
                   <Store
                     size={32}
                     className="text-gray-600"
                   />
-
                 </div>
 
                 <h2 className="text-xl font-bold text-white mt-5">
-                  Todavía no hay
-                  emprendimientos
+                  Todavía no hay emprendimientos
                 </h2>
 
                 <p className="text-sm text-gray-500 mt-2">
-                  Cuando se registren
-                  emprendimientos
-                  aparecerán acá.
+                  Cuando se registren emprendimientos aparecerán acá.
                 </p>
-
               </div>
-
             ) : (
-
               <>
-
                 {/* =====================================================
                     SEPARADOR EMPRENDIMIENTOS
                     ===================================================== */}
 
                 <section className="mb-10 mt-10 sm:mb-12 sm:mt-14">
-
                   <div className="relative flex items-center">
-
                     <div className="h-2 w-full bg-[#B4232D]" />
 
                     <div className="absolute left-1/2 -translate-x-1/2 bg-black px-4 sm:px-6">
-
                       <h2 className="whitespace-nowrap text-xl font-black uppercase tracking-[0.16em] text-white sm:text-3xl">
                         NUEVOS EMPRENDIMIENTOS
                       </h2>
-
                     </div>
-
                   </div>
 
                   <p className="mt-5 text-sm text-[#888888] sm:text-base">
                     Descubrí los últimos emprendimientos
                   </p>
-
                 </section>
 
                 <StoreSection
@@ -1161,40 +1150,36 @@ export default function Home() {
                     ===================================================== */}
 
                 <section className="mb-10 mt-14 sm:mb-12 sm:mt-20">
-
                   <div className="relative flex items-center">
-
                     <div className="h-2 w-full bg-[#B4232D]" />
 
                     <div className="absolute left-1/2 -translate-x-1/2 bg-black px-4 sm:px-6">
-
                       <h2 className="whitespace-nowrap text-xl font-black uppercase tracking-[0.16em] text-white sm:text-3xl">
                         PRODUCTOS
                       </h2>
-
                     </div>
-
                   </div>
 
                   <p className="mt-5 text-sm text-[#888888] sm:text-base">
                     Explorá emprendimientos según lo que estás buscando
                   </p>
-
                 </section>
 
                 {productCategories.map(
                   (category) => (
-
                     <StoreSection
                       key={`product-${category}`}
                       title={category}
                       subtitle="Emprendimientos que ofrecen estos productos"
-                      stores={getStoresByCategory(category)}
+                      stores={getStoresByCategory(
+                        category
+                      )}
                       favoriteIds={favoriteIds}
                       currentUserId={currentUserId}
-                      onToggleFavorite={toggleFavorite}
+                      onToggleFavorite={
+                        toggleFavorite
+                      }
                     />
-
                   )
                 )}
 
@@ -1203,55 +1188,45 @@ export default function Home() {
                     ===================================================== */}
 
                 <section className="mb-10 mt-16 sm:mb-12 sm:mt-20">
-
                   <div className="relative flex items-center">
-
                     <div className="h-2 w-full bg-[#B4232D]" />
 
                     <div className="absolute left-1/2 -translate-x-1/2 bg-black px-4 sm:px-6">
-
                       <h2 className="whitespace-nowrap text-xl font-black uppercase tracking-[0.16em] text-white sm:text-3xl">
                         SERVICIOS
                       </h2>
-
                     </div>
-
                   </div>
 
                   <p className="mt-5 text-sm text-[#888888] sm:text-base">
                     Encontrá personas y emprendimientos que ofrecen servicios
                   </p>
-
                 </section>
 
                 {serviceCategories.map(
                   (category) => (
-
                     <StoreSection
                       key={`service-${category}`}
                       title={category}
                       subtitle="Emprendimientos que ofrecen estos servicios"
-                      stores={getStoresByCategory(category)}
+                      stores={getStoresByCategory(
+                        category
+                      )}
                       favoriteIds={favoriteIds}
                       currentUserId={currentUserId}
-                      onToggleFavorite={toggleFavorite}
+                      onToggleFavorite={
+                        toggleFavorite
+                      }
                     />
-
                   )
                 )}
-
               </>
-
             )}
-
           </>
-
         )}
-
       </main>
 
       <BottomNav />
-
     </div>
   );
 }

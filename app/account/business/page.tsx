@@ -893,8 +893,8 @@ export default function BusinessPage() {
               </h2>
 
               <p className="text-sm text-[var(--color-muted)] mt-2 max-w-sm mx-auto">
-                Publicá un producto o servicio para que aparezca
-                dentro de tu emprendimiento.
+                Publicá un producto o servicio para que aparezca tu emprendimiento y tus publicaciones sean visibles para otros usuarios.
+
               </p>
 
               <Link
