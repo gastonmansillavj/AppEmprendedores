@@ -1,594 +1,1232 @@
+
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { supabase } from "@/lib/supabase";
-import { Listing } from "./types";
-import { demoListings } from "./demoListings";
 import {
-  Search, Moon, Sun, Heart, SlidersHorizontal, ChevronDown, LogOut, Tag, LayoutList, Settings, PackageSearch,
-  Smartphone, Footprints, Shirt, Gamepad2, Home as HomeIcon, ShoppingBag, ShieldCheck, Sparkles,
-  User, LogIn, UserPlus,
+  Search,
+  Store,
+  PackageSearch,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import Banner from "./components/Banner";
-import RecentlyViewed from "./components/RecentlyViewed";
-import Button from "./components/ui/Button";
-import NotificationBell from "./components/NotificationBell";
-import { useTheme } from "./components/ThemeProvider";
 
-const categories = ["All", "Electronics", "Sneakers", "Clothing", "Gaming", "Home", "Bags"];
-type SortOption = "default" | "price-asc" | "price-desc" | "most-liked";
+import { supabase } from "@/lib/supabase";
+import BottomNav from "./components/ui/BottomNav";
+import StoreSection from "./components/home/StoreSection";
+import HomeBanner from "./components/home/HomeBanner";
 
-const categoryInfo: Record<string, { icon: LucideIcon; gradient: string; image: string }> = {
-  Electronics: { icon: Smartphone, gradient: "linear-gradient(135deg, #3b82f6, #6366f1)", image: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=1200" },
-  Sneakers: { icon: Footprints, gradient: "linear-gradient(135deg, #f59e0b, #ec4899)", image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=1200" },
-  Clothing: { icon: Shirt, gradient: "linear-gradient(135deg, #8b5cf6, #ec4899)", image: "https://images.unsplash.com/photo-1551537482-f2075a1d41f2?w=1200" },
-  Gaming: { icon: Gamepad2, gradient: "linear-gradient(135deg, #10b981, #06b6d4)", image: "https://images.unsplash.com/photo-1578303512597-81e6cc155b3e?w=1200" },
-  Home: { icon: HomeIcon, gradient: "linear-gradient(135deg, #14b8a6, #3b82f6)", image: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1200" },
-  Bags: { icon: ShoppingBag, gradient: "linear-gradient(135deg, #f43f5e, #f97316)", image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=1200" },
+type StoreData = {
+  id: string;
+  businessName: string;
+  username: string;
+  logo: string | null;
+  bio: string;
+  city: string;
+  categories: string[];
+  latestListingAt: string;
 };
-const categoryList = categories.filter((c) => c !== "All");
 
-export default function Home() {
-  const { theme, toggleTheme } = useTheme();
-  const dark = theme === "dark";
+type SearchStore = {
+  id: string;
+  business_name: string | null;
+  username: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  city: string | null;
+};
 
-  const [listings, setListings] = useState<Listing[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<{ email?: string; id: string } | null>(null);
-  const [search, setSearch] = useState("");
-  const [activeCategory, setActiveCategory] = useState("All");
-  const [sort, setSort] = useState<SortOption>("default");
-  const [minPrice, setMinPrice] = useState("");
-  const [maxPrice, setMaxPrice] = useState("");
-  const [liked, setLiked] = useState<number[]>([]);
-  const [showLikedOnly, setShowLikedOnly] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [suggestions, setSuggestions] = useState<Listing[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+type SearchListing = {
+  id: number;
+  title: string;
+  description: string | null;
+  price: number;
+  category: string | null;
+  image_url: string | null;
+  images: string[] | null;
+  created_at: string;
+  seller_id: string;
+};
 
-  async function fetchListings() {
-    const { data, error } = await supabase
-      .from("listings")
-      .select("*, profiles(username)")
-      .eq("sold", false)
-      .order("created_at", { ascending: false });
+type SearchProduct = SearchListing & {
+  seller: {
+    id: string;
+    business_name: string | null;
+    username: string | null;
+    avatar_url: string | null;
+  } | null;
+};
 
-    if (!error && data) {
-      const mapped: Listing[] = data.map((l) => ({
-        id: l.id,
-        title: l.title,
-        price: l.price,
-        category: l.category,
-        condition: l.condition,
-        image: l.image_url || "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400",
-        seller: l.profiles?.username || "unknown",
-        likes: l.likes,
-        description: l.description,
-      }));
-      setListings(mapped.length > 0 ? mapped : demoListings);
-    } else {
-      setListings(demoListings);
-    }
-    setLoading(false);
-  }
+type UserProfile = {
+  avatar_url: string | null;
+  business_name: string | null;
+};
 
-  async function fetchLikes(userId: string) {
-    const { data, error } = await supabase.from("listing_likes").select("listing_id").eq("user_id", userId);
-    if (!error && data) setLiked(data.map((r) => r.listing_id));
-  }
+const productCategories = [
+  "Gastronomía",
+  "Indumentaria",
+  "Accesorios",
+  "Hogar y decoración",
+  "Regalos y personalizados",
+  "Arte y artesanías",
+  "Mascotas",
+  "Tecnología",
+  "Automotor",
+  "Otros",
+];
 
-  async function fetchUser() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      setUser({ id: user.id, email: user.email });
-      fetchLikes(user.id);
-    }
-  }
+const serviceCategories = [
+  "Reparaciones y mantenimiento",
+  "Belleza y estética",
+  "Fotografía y video",
+  "Tecnología y servicios digitales",
+  "Salud y entrenamiento",
+  "Automotor",
+  "Eventos",
+  "Hogar",
+  "Educación",
+  "Otros",
+];
 
-  useEffect(() => {
-    fetchListings();
-    fetchUser();
-  }, []);
+function formatPrice(price: number) {
+  return new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency: "ARS",
+    maximumFractionDigits: 0,
+  }).format(price);
+}
 
-  async function handleSignOut() {
-    await supabase.auth.signOut();
-    setUser(null);
-  }
+/* =====================================================
+   RESULTADO DE EMPRENDIMIENTO
+   ===================================================== */
 
-  const toggleLike = async (e: React.MouseEvent, id: number) => {
-    e.preventDefault();
-    const wasLiked = liked.includes(id);
-    setLiked((prev) => (wasLiked ? prev.filter((l) => l !== id) : [...prev, id]));
-
-    // Signed-out users and demo (negative-id) listings keep the toggle local-only —
-    // there's no account to persist to, and demo ids don't exist in the real listings table.
-    if (!user || id < 0) return;
-
-    if (wasLiked) {
-      await supabase.from("listing_likes").delete().eq("user_id", user.id).eq("listing_id", id);
-    } else {
-      await supabase.from("listing_likes").insert({ user_id: user.id, listing_id: id });
-    }
-  };
-
-  const filtered = useMemo(() => {
-    let result = listings.filter((listing) => {
-      const matchesSearch = listing.title.toLowerCase().includes(search.toLowerCase());
-      const matchesCategory = activeCategory === "All" || listing.category === activeCategory;
-      const matchesMin = minPrice === "" || listing.price >= Number(minPrice);
-      const matchesMax = maxPrice === "" || listing.price <= Number(maxPrice);
-      const matchesLiked = !showLikedOnly || liked.includes(listing.id);
-      return matchesSearch && matchesCategory && matchesMin && matchesMax && matchesLiked;
-    });
-    if (sort === "price-asc") result = [...result].sort((a, b) => a.price - b.price);
-    if (sort === "price-desc") result = [...result].sort((a, b) => b.price - a.price);
-    if (sort === "most-liked") result = [...result].sort((a, b) => b.likes - a.likes);
-    return result;
-  }, [listings, search, activeCategory, minPrice, maxPrice, sort, showLikedOnly, liked]);
-
-  const trending = useMemo(() => [...listings].sort((a, b) => b.likes - a.likes).slice(0, 8), [listings]);
-
-  const [catIndex, setCatIndex] = useState(0);
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCatIndex((prev) => (prev + 1) % categoryList.length);
-    }, 3000);
-    return () => clearInterval(timer);
-  }, []);
+function SearchStoreCard({
+  store,
+}: {
+  store: SearchStore;
+}) {
+  const businessName =
+    store.business_name?.trim() ||
+    store.username?.trim() ||
+    "Emprendimiento";
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] transition-colors duration-300">
-      {/* Navbar */}
-      <nav className="sticky top-0 z-20 bg-[var(--color-surface)]/90 backdrop-blur-xl border-b border-[var(--color-border)]">
-        <div className="max-w-[1400px] mx-auto px-8 h-16 flex items-center gap-5">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5 shrink-0 no-underline">
-            <div className="w-8 h-8 rounded-[10px] bg-[linear-gradient(135deg,var(--color-brand-start),var(--color-brand-end))] shadow-[0_2px_8px_rgba(255,59,59,0.3)] flex items-center justify-center">
-              <span className="text-white text-sm font-black">M</span>
-            </div>
-            <span className="font-extrabold text-[17px] tracking-tight text-[var(--color-text)]">mercari</span>
-          </Link>
-
-          {/* Search */}
-          <div className="flex-1 relative max-w-[600px]">
-            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-muted)] pointer-events-none z-[1]" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                if (e.target.value.length > 1) {
-                  const matches = listings
-                    .filter((l) => l.title.toLowerCase().includes(e.target.value.toLowerCase()))
-                    .slice(0, 6);
-                  setSuggestions(matches);
-                  setShowSuggestions(true);
-                } else {
-                  setShowSuggestions(false);
-                }
-              }}
-              onFocus={() => {
-                if (search.length > 1) setShowSuggestions(true);
-              }}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-              placeholder="Search for anything..."
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border-[1.5px] border-[var(--color-border)] bg-[var(--color-subtle)] text-[var(--color-text)] text-[13.5px] outline-none focus:border-[var(--color-brand)] transition-colors"
-            />
-            {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute top-[calc(100%+8px)] left-0 right-0 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.12)] z-50">
-                {suggestions.map((s) => (
-                  <Link
-                    key={s.id}
-                    href={`/listings/${s.id}`}
-                    onClick={() => { setSearch(s.title); setShowSuggestions(false); }}
-                    className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg no-underline hover:bg-[var(--color-subtle)] transition-colors"
-                  >
-                    <Search size={12} className="text-[var(--color-muted)] shrink-0" />
-                    <span className="text-[13px] font-medium truncate">{s.title}</span>
-                    <span className="ml-auto text-xs font-bold text-[var(--color-muted)] shrink-0">${s.price}</span>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Right side */}
-          <div className="flex items-center gap-2.5 ml-auto shrink-0">
-            <button
-              onClick={toggleTheme}
-              className="w-9 h-9 rounded-[10px] border-[1.5px] border-[var(--color-border)] bg-[var(--color-subtle)] flex items-center justify-center text-[var(--color-muted)] hover:bg-[var(--color-border)] transition-colors"
-            >
-              {dark ? <Sun size={15} /> : <Moon size={15} />}
-            </button>
-
-            {user && <NotificationBell />}
-
-            {user ? (
-              <div className="relative">
-                <button
-                  onClick={() => setShowProfileMenu(!showProfileMenu)}
-                  className="w-9 h-9 rounded-full bg-[linear-gradient(135deg,var(--color-brand-start),var(--color-brand-end))] flex items-center justify-center text-white font-extrabold text-sm shadow-[0_2px_8px_rgba(255,59,59,0.3)]"
-                >
-                  {user.email?.[0].toUpperCase()}
-                </button>
-                {showProfileMenu && (
-                  <div
-                    className="absolute top-[46px] right-0 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-1.5 min-w-[200px] shadow-[0_12px_40px_rgba(0,0,0,0.15)] z-[100]"
-                    onMouseLeave={() => setShowProfileMenu(false)}
-                  >
-                    <div className="px-3 pt-2 pb-2.5 border-b border-[var(--color-border)] mb-1">
-                      <p className="text-xs font-bold truncate">{user.email}</p>
-                    </div>
-                    {[
-                      { label: "My Listings", href: "/my-listings", icon: <LayoutList size={14} /> },
-                      { label: "Offers", href: "/offers", icon: <Tag size={14} /> },
-                      { label: "Settings", href: "/settings", icon: <Settings size={14} /> },
-                    ].map((item) => (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        onClick={() => setShowProfileMenu(false)}
-                        className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium no-underline hover:bg-[var(--color-subtle)] transition-colors"
-                      >
-                        <span className="text-[var(--color-muted)]">{item.icon}</span> {item.label}
-                      </Link>
-                    ))}
-                    <div className="h-px bg-[var(--color-border)] my-1 mx-1.5" />
-                    <button
-                      onClick={() => { handleSignOut(); setShowProfileMenu(false); }}
-                      className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-[var(--color-brand)] w-full hover:bg-red-500/10 transition-colors"
-                    >
-                      <LogOut size={14} /> Sign out
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="relative">
-                <button
-                  onClick={() => setShowProfileMenu(!showProfileMenu)}
-                  className="w-9 h-9 rounded-full border-[1.5px] border-[var(--color-border)] bg-[var(--color-subtle)] flex items-center justify-center text-[var(--color-muted)] hover:bg-[var(--color-border)] transition-colors"
-                >
-                  <User size={16} />
-                </button>
-                {showProfileMenu && (
-                  <div
-                    className="absolute top-[46px] right-0 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-1.5 min-w-[220px] shadow-[0_12px_40px_rgba(0,0,0,0.15)] z-[100]"
-                    onMouseLeave={() => setShowProfileMenu(false)}
-                  >
-                    <div className="px-3 pt-2 pb-2.5 mb-1">
-                      <p className="text-[13px] font-bold">Welcome</p>
-                      <p className="text-[11.5px] text-[var(--color-muted)]">Sign in to buy, sell, and save items</p>
-                    </div>
-                    <Link
-                      href="/auth"
-                      onClick={() => setShowProfileMenu(false)}
-                      className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-bold no-underline text-white mb-1 bg-[linear-gradient(135deg,var(--color-brand-start),var(--color-brand-end))] shadow-[var(--shadow-glow-brand-sm)] hover:opacity-95 transition-opacity"
-                    >
-                      <LogIn size={14} /> Sign in
-                    </Link>
-                    <Link
-                      href="/auth?mode=signup"
-                      onClick={() => setShowProfileMenu(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium no-underline hover:bg-[var(--color-subtle)] transition-colors"
-                    >
-                      <UserPlus size={14} /> Create account
-                    </Link>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <Button href="/sell" className="text-[13.5px]">+ Sell</Button>
-          </div>
-        </div>
-
-        {/* Category pills */}
-        <div className="max-w-[1400px] mx-auto px-8 pb-3.5 flex gap-1.5 overflow-x-auto scrollbar-hide">
-          {categories.map((cat) => {
-            const active = activeCategory === cat;
-            return (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={`whitespace-nowrap px-4 py-1.5 rounded-full text-[12.5px] font-semibold transition-all border-[1.5px] ${
-                  active
-                    ? "bg-[linear-gradient(135deg,var(--color-brand-start),var(--color-brand-end))] text-white border-transparent shadow-[var(--shadow-glow-brand-sm)]"
-                    : "bg-[var(--color-subtle)] text-[var(--color-muted)] border-[var(--color-border)] hover:border-[var(--color-brand)]"
-                }`}
-              >
-                {cat}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
-
-      {/* Trust strip */}
-      <div className="max-w-[1400px] mx-auto px-8 pt-5 flex flex-wrap items-center gap-x-7 gap-y-2 text-[12px] text-[var(--color-muted)] font-medium">
-        <span className="flex items-center gap-1.5"><PackageSearch size={13} /> {listings.length}+ items listed</span>
-        <span className="flex items-center gap-1.5"><Tag size={13} /> {categories.length - 1} categories</span>
-        <span className="flex items-center gap-1.5"><Sparkles size={13} /> AI-assisted listings</span>
-        <span className="flex items-center gap-1.5"><ShieldCheck size={13} /> Secure checkout via Stripe</span>
+    <Link
+      href={`/store/${store.id}`}
+      className="group flex items-center gap-4 bg-[#111111] border border-[#262626] rounded-2xl p-4 hover:border-[#B4232D] hover:bg-[#151515] transition-all duration-200"
+    >
+      <div className="w-16 h-16 rounded-xl bg-[#1a1a1a] border border-[#292929] flex items-center justify-center overflow-hidden shrink-0">
+        {store.avatar_url ? (
+          <Image
+            src={store.avatar_url}
+            alt={businessName}
+            width={64}
+            height={64}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <Store
+            size={28}
+            className="text-gray-600"
+          />
+        )}
       </div>
 
-      {/* Banner */}
-      <Banner />
+      <div className="min-w-0 flex-1">
+        <h3 className="font-bold text-white truncate">
+          {businessName}
+        </h3>
 
-      {/* Shop by category — rotating showcase */}
-      <div className="max-w-[1400px] mx-auto px-8 pt-8">
-        <h2 className="text-[13px] font-bold text-[var(--color-muted)] uppercase tracking-wide mb-4">Shop by category</h2>
-        <div className="relative rounded-2xl overflow-hidden h-[200px] shadow-[var(--shadow-card)]">
-          {categoryList.map((cat, i) => {
-            const info = categoryInfo[cat];
-            const Icon = info.icon;
-            const count = listings.filter((l) => l.category === cat).length;
-            return (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={`absolute inset-0 w-full h-full text-left transition-opacity duration-700 ${
-                  i === catIndex ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
-                }`}
-              >
-                <Image src={info.image} alt={cat} fill priority={i === 0} className="object-cover" />
-                <div
-                  className="absolute inset-0"
-                  style={{ background: "linear-gradient(to right, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.3) 55%, transparent 100%)" }}
-                />
-                <div className="absolute inset-0 flex items-center px-8 gap-4">
-                  <div
-                    className="w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-md shrink-0"
-                    style={{ background: info.gradient }}
-                  >
-                    <Icon size={26} />
-                  </div>
-                  <div>
-                    <p className="text-white text-2xl font-black tracking-tight">{cat}</p>
-                    <p className="text-white/70 text-sm">{count} items available</p>
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-          <div className="absolute bottom-4 left-8 flex gap-2 z-20">
-            {categoryList.map((cat, i) => (
-              <button
-                key={cat}
-                onClick={() => setCatIndex(i)}
-                className="h-2 rounded-full transition-all"
-                style={{
-                  background: i === catIndex ? "#fff" : "rgba(255,255,255,0.4)",
-                  width: i === catIndex ? "20px" : "8px",
-                }}
+        {store.bio && (
+          <p className="text-sm text-gray-400 line-clamp-2 mt-1">
+            {store.bio}
+          </p>
+        )}
+
+        {store.city && (
+          <p className="text-xs text-gray-500 mt-2">
+            {store.city}
+          </p>
+        )}
+      </div>
+
+      <span className="text-sm font-bold text-[#B4232D] shrink-0 group-hover:translate-x-0.5 transition-transform">
+        Ver →
+      </span>
+    </Link>
+  );
+}
+
+/* =====================================================
+   RESULTADO DE PRODUCTO
+   ===================================================== */
+
+function SearchProductCard({
+  product,
+}: {
+  product: SearchProduct;
+}) {
+  const sellerName =
+    product.seller?.business_name?.trim() ||
+    product.seller?.username?.trim() ||
+    "Emprendimiento";
+
+  const image =
+    product.image_url ||
+    product.images?.[0] ||
+    null;
+
+  return (
+    <Link
+      href={`/listings/${product.id}`}
+      className="group bg-[#111111] border border-[#262626] rounded-2xl overflow-hidden hover:border-[#B4232D] hover:shadow-[0_8px_30px_rgba(180,35,45,0.12)] transition-all duration-200"
+    >
+      <div className="aspect-square bg-[#181818] flex items-center justify-center overflow-hidden">
+        {image ? (
+          <Image
+            src={image}
+            alt={product.title}
+            width={400}
+            height={400}
+            className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
+          />
+        ) : (
+          <PackageSearch
+            size={48}
+            className="text-gray-600"
+          />
+        )}
+      </div>
+
+      <div className="p-4">
+        <h3 className="font-bold text-white line-clamp-2 min-h-[48px]">
+          {product.title}
+        </h3>
+
+        <p className="text-lg font-black text-white mt-2">
+          {formatPrice(product.price)}
+        </p>
+
+        <p className="text-sm text-gray-400 mt-2 truncate">
+          {sellerName}
+        </p>
+
+        {product.category && (
+          <span className="inline-block text-[11px] font-semibold text-[#D85A63] bg-[#B4232D]/10 border border-[#B4232D]/20 rounded-full px-2.5 py-1 mt-3">
+            {product.category}
+          </span>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+/* =====================================================
+   RESULTADOS DE BÚSQUEDA
+   ===================================================== */
+
+function SearchResults({
+  stores,
+  products,
+  loading,
+}: {
+  stores: SearchStore[];
+  products: SearchProduct[];
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="py-20 text-center">
+        <div className="inline-flex items-center gap-3 text-gray-500">
+          <div className="w-4 h-4 border-2 border-gray-700 border-t-[#B4232D] rounded-full animate-spin" />
+          Buscando...
+        </div>
+      </div>
+    );
+  }
+
+  if (
+    stores.length === 0 &&
+    products.length === 0
+  ) {
+    return (
+      <div className="py-20 text-center">
+        <div className="w-16 h-16 mx-auto rounded-2xl bg-[#111111] border border-[#252525] flex items-center justify-center">
+          <PackageSearch
+            size={32}
+            className="text-gray-600"
+          />
+        </div>
+
+        <h2 className="text-xl font-bold text-white mt-5">
+          No encontramos resultados
+        </h2>
+
+        <p className="text-sm text-gray-500 mt-2">
+          Probá buscando otro producto o emprendimiento.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-12">
+      {stores.length > 0 && (
+        <section>
+          <div className="flex items-end justify-between mb-5">
+            <div>
+              <h2 className="text-2xl font-black tracking-tight text-white">
+                Emprendimientos
+              </h2>
+
+              <p className="text-sm text-gray-500 mt-1">
+                Emprendimientos relacionados con tu búsqueda
+              </p>
+            </div>
+
+            <span className="text-xs font-bold text-gray-500 bg-[#111111] border border-[#242424] px-3 py-1.5 rounded-full">
+              {stores.length}
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {stores.map((store) => (
+              <SearchStoreCard
+                key={store.id}
+                store={store}
               />
             ))}
           </div>
-        </div>
-      </div>
-
-      {/* Recently viewed */}
-      <RecentlyViewed />
-
-      {/* Trending now */}
-      {trending.length > 0 && (
-        <div className="max-w-[1400px] mx-auto px-8 pt-8">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-base">🔥</span>
-            <h2 className="text-[13px] font-bold text-[var(--color-muted)] uppercase tracking-wide">Trending now</h2>
-          </div>
-          <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-2">
-            {trending.map((listing, i) => (
-              <Link href={`/listings/${listing.id}`} key={listing.id} className="group no-underline shrink-0 w-[170px]">
-                <div className="rounded-2xl overflow-hidden bg-[var(--color-surface)] border border-[var(--color-border)] shadow-[var(--shadow-card)] transition-all duration-200 group-hover:shadow-[var(--shadow-card-hover)] group-hover:-translate-y-1">
-                  <div className="relative pt-[100%] overflow-hidden">
-                    <Image
-                      src={listing.image}
-                      alt={listing.title}
-                      fill
-                      className="object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                    <span className="absolute top-2 left-2 text-[11px] font-black w-6 h-6 rounded-full bg-[linear-gradient(135deg,var(--color-brand-start),var(--color-brand-end))] text-white flex items-center justify-center shadow-[var(--shadow-glow-brand-sm)]">
-                      {i + 1}
-                    </span>
-                  </div>
-                  <div className="px-3 pb-3 pt-2.5">
-                    <p className="text-[12.5px] font-semibold truncate mb-1">{listing.title}</p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[14px] font-extrabold">${listing.price}</span>
-                      <span className="flex items-center gap-1 text-[11px] text-[var(--color-muted)] font-semibold">
-                        <Heart size={11} fill="#ff3b3b" color="#ff3b3b" /> {listing.likes}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
+        </section>
       )}
 
-      {/* Filters bar */}
-      <div className="max-w-[1400px] mx-auto px-8 pt-6">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-baseline gap-2.5">
-            <h2 className="text-[22px] font-extrabold tracking-tight m-0">
-              {activeCategory === "All" ? "All listings" : activeCategory}
-            </h2>
-            {!loading && (
-              <span className="text-[13px] text-[var(--color-muted)] font-medium">{filtered.length} items</span>
-            )}
+      {products.length > 0 && (
+        <section>
+          <div className="flex items-end justify-between mb-5">
+            <div>
+              <h2 className="text-2xl font-black tracking-tight text-white">
+                Productos
+              </h2>
+
+              <p className="text-sm text-gray-500 mt-1">
+                Productos relacionados con tu búsqueda
+              </p>
+            </div>
+
+            <span className="text-xs font-bold text-gray-500 bg-[#111111] border border-[#242424] px-3 py-1.5 rounded-full">
+              {products.length}
+            </span>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => setShowLikedOnly(!showLikedOnly)}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-[10px] border-[1.5px] text-[12.5px] font-semibold transition-all ${
-                showLikedOnly
-                  ? "border-[var(--color-brand)] bg-red-500/10 text-[var(--color-brand)]"
-                  : "border-[var(--color-border)] bg-[var(--color-subtle)] text-[var(--color-muted)]"
-              }`}
-            >
-              <Heart size={13} fill={showLikedOnly ? "#ff3b3b" : "none"} /> Saved
-            </button>
-
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-[10px] border-[1.5px] text-[12.5px] font-semibold transition-all ${
-                showFilters
-                  ? "border-[var(--color-brand)] bg-red-500/10 text-[var(--color-brand)]"
-                  : "border-[var(--color-border)] bg-[var(--color-subtle)] text-[var(--color-muted)]"
-              }`}
-            >
-              <SlidersHorizontal size={13} /> Filters
-              <ChevronDown size={12} className={`transition-transform duration-200 ${showFilters ? "rotate-180" : ""}`} />
-            </button>
-
-            <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value as SortOption)}
-              className="px-3.5 py-2 rounded-[10px] border-[1.5px] border-[var(--color-border)] bg-[var(--color-subtle)] text-[var(--color-muted)] text-[12.5px] font-semibold outline-none cursor-pointer"
-            >
-              <option value="default">Sort: Default</option>
-              <option value="price-asc">Price: Low → High</option>
-              <option value="price-desc">Price: High → Low</option>
-              <option value="most-liked">Most Liked</option>
-            </select>
-          </div>
-        </div>
-
-        {showFilters && (
-          <div className="mt-3.5 px-4.5 py-3.5 rounded-xl border-[1.5px] border-[var(--color-border)] bg-[var(--color-surface)] flex items-center gap-3 flex-wrap">
-            <span className="text-[12.5px] text-[var(--color-muted)] font-semibold">Price range</span>
-            <input
-              type="number"
-              placeholder="Min $"
-              value={minPrice}
-              onChange={(e) => setMinPrice(e.target.value)}
-              className="w-[88px] px-3 py-1.5 rounded-lg border-[1.5px] border-[var(--color-border)] bg-[var(--color-subtle)] text-[var(--color-text)] text-[12.5px] outline-none"
-            />
-            <span className="text-[var(--color-muted)]">—</span>
-            <input
-              type="number"
-              placeholder="Max $"
-              value={maxPrice}
-              onChange={(e) => setMaxPrice(e.target.value)}
-              className="w-[88px] px-3 py-1.5 rounded-lg border-[1.5px] border-[var(--color-border)] bg-[var(--color-subtle)] text-[var(--color-text)] text-[12.5px] outline-none"
-            />
-            {(minPrice || maxPrice) && (
-              <button
-                onClick={() => { setMinPrice(""); setMaxPrice(""); }}
-                className="text-[12.5px] text-[var(--color-brand)] font-semibold"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Grid */}
-      <main className="max-w-[1400px] mx-auto px-8 pt-5 pb-16">
-        {loading ? (
-          <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
-            {[...Array(12)].map((_, i) => (
-              <div key={i} className="rounded-2xl overflow-hidden bg-[var(--color-surface)] border border-[var(--color-border)]">
-                <div className="pt-[75%] bg-[var(--color-subtle)] animate-pulse" />
-                <div className="px-3.5 pb-3.5 pt-3 flex flex-col gap-2">
-                  <div className="h-[13px] rounded-md bg-[var(--color-subtle)] w-4/5 animate-pulse" />
-                  <div className="h-[13px] rounded-md bg-[var(--color-subtle)] w-2/5 animate-pulse" />
-                </div>
-              </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {products.map((product) => (
+              <SearchProductCard
+                key={product.id}
+                product={product}
+              />
             ))}
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-24">
-            <div className="w-16 h-16 rounded-[20px] bg-[var(--color-subtle)] flex items-center justify-center mx-auto mb-4">
-              <PackageSearch size={28} className="text-[var(--color-muted)]" />
-            </div>
-            <p className="text-base font-bold mb-1.5">No listings found</p>
-            <p className="text-[13px] text-[var(--color-muted)]">Try adjusting your filters or search term</p>
-            {activeCategory !== "All" && (
-              <Button onClick={() => setActiveCategory("All")} className="mt-4 text-[13px]">
-                View all listings
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
-            {filtered.map((listing) => {
-              const isDemo = listing.id < 0;
-              return (
-              <Link href={`/listings/${listing.id}`} key={listing.id} className="group no-underline">
-                <div className="rounded-2xl overflow-hidden bg-[var(--color-surface)] border border-[var(--color-border)] shadow-[var(--shadow-card)] transition-all duration-200 group-hover:shadow-[var(--shadow-card-hover)] group-hover:-translate-y-1">
-                  {/* Image */}
-                  <div className="relative pt-[75%] overflow-hidden">
-                    <Image
-                      src={listing.image}
-                      alt={listing.title}
-                      fill
-                      className="object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                    <button
-                      onClick={(e) => toggleLike(e, listing.id)}
-                      className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center transition-transform hover:scale-110"
-                    >
-                      <Heart size={14} fill={liked.includes(listing.id) ? "#ff3b3b" : "none"} color={liked.includes(listing.id) ? "#ff3b3b" : "#fff"} />
-                    </button>
-                    {listing.condition === "New" && (
-                      <span className="absolute top-2.5 left-2.5 text-[10px] font-bold px-2 py-[3px] rounded-md bg-[var(--color-success)]/90 text-white backdrop-blur-sm">
-                        NEW
-                      </span>
-                    )}
-                    {isDemo && (
-                      <span className="absolute bottom-2.5 left-2.5 text-[10px] font-bold px-2 py-[3px] rounded-md bg-black/40 text-white backdrop-blur-sm">
-                        Demo
-                      </span>
-                    )}
-                  </div>
+        </section>
+      )}
+    </div>
+  );
+}
 
-                  {/* Info */}
-                  <div className="px-3.5 pb-3.5 pt-3">
-                    <p className="text-[13px] font-semibold truncate mb-1 leading-snug">{listing.title}</p>
-                    <p className="text-[17px] font-extrabold mb-2 tracking-tight">${listing.price}</p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-semibold text-[var(--color-muted)] bg-[var(--color-subtle)] px-2 py-[3px] rounded-md border border-[var(--color-border)]">
-                        {listing.condition}
-                      </span>
-                      <span className="flex items-center gap-2 text-[11px] text-[var(--color-muted)] font-medium">
-                        <span className="flex items-center gap-0.5"><Heart size={10} className="text-[var(--color-brand)]" fill="currentColor" /> {listing.likes}</span>
-                        @{listing.seller}
-                      </span>
+/* =====================================================
+   HOME
+   ===================================================== */
+
+export default function Home() {
+  const [search, setSearch] = useState("");
+
+  const [stores, setStores] =
+    useState<StoreData[]>([]);
+
+  const [searchStores, setSearchStores] =
+    useState<SearchStore[]>([]);
+
+  const [searchProducts, setSearchProducts] =
+    useState<SearchProduct[]>([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [searchLoading, setSearchLoading] =
+    useState(false);
+
+  /* =====================================================
+     CONTROL DE PANTALLA
+     ===================================================== */
+
+  const [isDesktop, setIsDesktop] =
+    useState(false);
+
+  /* =====================================================
+     AUTENTICACIÓN
+     ===================================================== */
+
+  const [authLoading, setAuthLoading] =
+    useState(true);
+
+  const [isLoggedIn, setIsLoggedIn] =
+    useState(false);
+
+  const [currentUserId, setCurrentUserId] =
+    useState<string | null>(null);
+
+  /* =====================================================
+     FAVORITOS
+     ===================================================== */
+
+  const [favoriteIds, setFavoriteIds] =
+    useState<string[]>([]);
+
+  /* =====================================================
+     PERFIL DEL USUARIO LOGUEADO
+     ===================================================== */
+
+  const [userProfile, setUserProfile] =
+    useState<UserProfile | null>(null);
+
+  /* =====================================================
+     DETECTAR PC / CELULAR
+     ===================================================== */
+
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsDesktop(window.innerWidth >= 768);
+    };
+
+    checkScreenSize();
+
+    window.addEventListener(
+      "resize",
+      checkScreenSize
+    );
+
+    return () => {
+      window.removeEventListener(
+        "resize",
+        checkScreenSize
+      );
+    };
+  }, []);
+
+  async function fetchUserProfile() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setIsLoggedIn(false);
+      setUserProfile(null);
+      setCurrentUserId(null);
+      setAuthLoading(false);
+      return;
+    }
+
+    setIsLoggedIn(true);
+    setCurrentUserId(user.id);
+
+    const { data, error } =
+      await supabase
+        .from("profiles")
+        .select(`
+          avatar_url,
+          business_name
+        `)
+        .eq("id", user.id)
+        .maybeSingle();
+
+    if (error) {
+      console.error(
+        "Error obteniendo perfil:",
+        error
+      );
+    }
+
+    setUserProfile(
+      data as UserProfile | null
+    );
+
+    setAuthLoading(false);
+  }
+
+  /* =====================================================
+     CARGAR FAVORITOS
+     ===================================================== */
+
+  async function fetchFavorites() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setFavoriteIds([]);
+      return;
+    }
+
+    const { data, error } =
+      await supabase
+        .from("favorites")
+        .select("profile_id")
+        .eq("user_id", user.id);
+
+    if (error) {
+      console.error(
+        "Error obteniendo favoritos:",
+        error
+      );
+      return;
+    }
+
+    setFavoriteIds(
+      (data || []).map(
+        (favorite) =>
+          favorite.profile_id
+      )
+    );
+  }
+
+  /* =====================================================
+     AGREGAR / QUITAR FAVORITO
+     ===================================================== */
+
+  async function toggleFavorite(
+    profileId: string
+  ) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return;
+    }
+
+    const isFavorite =
+      favoriteIds.includes(profileId);
+
+    if (isFavorite) {
+      const { error } =
+        await supabase
+          .from("favorites")
+          .delete()
+          .eq("user_id", user.id)
+          .eq(
+            "profile_id",
+            profileId
+          );
+
+      if (error) {
+        console.error(
+          "Error quitando favorito:",
+          error
+        );
+        return;
+      }
+
+      setFavoriteIds(
+        (current) =>
+          current.filter(
+            (id) =>
+              id !== profileId
+          )
+      );
+    } else {
+      const { error } =
+        await supabase
+          .from("favorites")
+          .insert({
+            user_id: user.id,
+            profile_id: profileId,
+          });
+
+      if (error) {
+        console.error(
+          "Error agregando favorito:",
+          error
+        );
+        return;
+      }
+
+      setFavoriteIds(
+        (current) => [
+          ...current,
+          profileId,
+        ]
+      );
+    }
+  }
+
+  /* =====================================================
+     CARGAR EMPRENDIMIENTOS
+     ===================================================== */
+
+  async function fetchStores() {
+    setLoading(true);
+
+    const {
+      data: profiles,
+      error: profilesError,
+    } = await supabase
+      .from("profiles")
+      .select(`
+        id,
+        username,
+        business_name,
+        avatar_url,
+        bio,
+        city
+      `)
+      .eq("status", "activo");
+
+    if (
+      profilesError ||
+      !profiles
+    ) {
+      console.error(
+        "Error obteniendo emprendimientos:",
+        profilesError
+      );
+
+      setStores([]);
+      setLoading(false);
+      return;
+    }
+
+    const {
+      data: listings,
+      error: listingsError,
+    } = await supabase
+      .from("listings")
+      .select(`
+        id,
+        category,
+        created_at,
+        seller_id
+      `)
+      .eq("sold", false)
+      .order("created_at", {
+        ascending: false,
+      });
+
+    if (listingsError) {
+      console.error(
+        "Error obteniendo publicaciones:",
+        listingsError
+      );
+    }
+
+    const storesMap = new Map<
+      string,
+      StoreData
+    >();
+
+    for (const profile of profiles) {
+      const businessName =
+        profile.business_name?.trim() ||
+        profile.username?.trim() ||
+        "Emprendimiento";
+
+      storesMap.set(profile.id, {
+        id: profile.id,
+        businessName,
+        username:
+          profile.username || "",
+        logo: profile.avatar_url,
+        bio: profile.bio || "",
+        city:
+          profile.city || "Rafaela",
+        categories: [],
+        latestListingAt:
+          "1970-01-01T00:00:00.000Z",
+      });
+    }
+
+    if (listings) {
+      for (const listing of listings) {
+        const store =
+          storesMap.get(
+            listing.seller_id
+          );
+
+        if (!store) continue;
+
+        if (
+          listing.category &&
+          !store.categories.includes(
+            listing.category
+          )
+        ) {
+          store.categories.push(
+            listing.category
+          );
+        }
+
+        if (
+          new Date(
+            listing.created_at
+          ).getTime() >
+          new Date(
+            store.latestListingAt
+          ).getTime()
+        ) {
+          store.latestListingAt =
+            listing.created_at;
+        }
+      }
+    }
+
+    const storesArray =
+      Array.from(
+        storesMap.values()
+      );
+
+    storesArray.sort((a, b) => {
+      return (
+        new Date(
+          b.latestListingAt
+        ).getTime() -
+        new Date(
+          a.latestListingAt
+        ).getTime()
+      );
+    });
+
+    setStores(storesArray);
+    setLoading(false);
+  }
+
+  /* =====================================================
+     BUSCAR EMPRENDIMIENTOS + PRODUCTOS
+     ===================================================== */
+
+  async function performSearch(
+    query: string
+  ) {
+    const cleanQuery =
+      query.trim();
+
+    if (!cleanQuery) {
+      setSearchStores([]);
+      setSearchProducts([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    setSearchLoading(true);
+
+    const {
+      data: profiles,
+      error: profilesError,
+    } = await supabase
+      .from("profiles")
+      .select(`
+        id,
+        business_name,
+        username,
+        avatar_url,
+        bio,
+        city
+      `)
+      .eq("status", "activo")
+      .or(
+        `business_name.ilike.%${cleanQuery}%,username.ilike.%${cleanQuery}%,bio.ilike.%${cleanQuery}%`
+      )
+      .limit(10);
+
+    if (profilesError) {
+      console.error(
+        "Error buscando emprendimientos:",
+        profilesError
+      );
+    }
+
+    const {
+      data: listings,
+      error: listingsError,
+    } = await supabase
+      .from("listings")
+      .select(`
+        id,
+        title,
+        description,
+        price,
+        category,
+        image_url,
+        images,
+        created_at,
+        seller_id
+      `)
+      .eq("sold", false)
+      .or(
+        `title.ilike.%${cleanQuery}%,description.ilike.%${cleanQuery}%,category.ilike.%${cleanQuery}%`
+      )
+      .order("created_at", {
+        ascending: false,
+      })
+      .limit(20);
+
+    if (listingsError) {
+      console.error(
+        "Error buscando productos:",
+        listingsError
+      );
+    }
+
+    let productsWithSeller: SearchProduct[] =
+      [];
+
+    if (
+      listings &&
+      listings.length > 0
+    ) {
+      const sellerIds = [
+        ...new Set(
+          listings.map(
+            (listing) =>
+              listing.seller_id
+          )
+        ),
+      ];
+
+      const {
+        data: sellers,
+        error: sellersError,
+      } = await supabase
+        .from("profiles")
+        .select(`
+          id,
+          business_name,
+          username,
+          avatar_url
+        `)
+        .eq("status", "activo")
+        .in(
+          "id",
+          sellerIds
+        );
+
+      if (sellersError) {
+        console.error(
+          "Error obteniendo vendedores:",
+          sellersError
+        );
+      }
+
+      const sellersMap =
+        new Map<
+          string,
+          {
+            id: string;
+            business_name:
+              | string
+              | null;
+            username:
+              | string
+              | null;
+            avatar_url:
+              | string
+              | null;
+          }
+        >();
+
+      sellers?.forEach(
+        (seller) => {
+          sellersMap.set(
+            seller.id,
+            seller
+          );
+        }
+      );
+
+      productsWithSeller =
+        listings
+          .filter((listing) =>
+            sellersMap.has(
+              listing.seller_id
+            )
+          )
+          .map(
+            (listing) => ({
+              ...listing,
+              seller:
+                sellersMap.get(
+                  listing.seller_id
+                ) || null,
+            })
+          );
+    }
+
+    setSearchStores(
+      profiles || []
+    );
+
+    setSearchProducts(
+      productsWithSeller
+    );
+
+    setSearchLoading(false);
+  }
+
+  /* =====================================================
+     CARGAR HOME + AUTENTICACIÓN
+     ===================================================== */
+
+  useEffect(() => {
+    fetchStores();
+    fetchUserProfile();
+    fetchFavorites();
+
+    const {
+      data: authListener,
+    } =
+      supabase.auth.onAuthStateChange(
+        async () => {
+          await fetchUserProfile();
+          await fetchFavorites();
+        }
+      );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
+  /* =====================================================
+     BÚSQUEDA INSTANTÁNEA
+     ===================================================== */
+
+  useEffect(() => {
+    const cleanQuery =
+      search.trim();
+
+    if (!cleanQuery) {
+      setSearchStores([]);
+      setSearchProducts([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    setSearchLoading(true);
+
+    const timeout =
+      setTimeout(() => {
+        performSearch(
+          cleanQuery
+        );
+      }, 300);
+
+    return () =>
+      clearTimeout(timeout);
+  }, [search]);
+
+  const newStores =
+    useMemo(() => {
+      return stores.slice(0, 10);
+    }, [stores]);
+
+  const getStoresByCategory = (
+    category: string
+  ) => {
+    return stores.filter(
+      (store) =>
+        store.categories.includes(
+          category
+        )
+    );
+  };
+
+  const hasSearch =
+    search.trim().length > 0;
+
+  return (
+    <div className="min-h-screen bg-black text-gray-100 pb-24">
+
+      {/* =====================================================
+          HEADER
+          ===================================================== */}
+
+      <header className="sticky top-0 z-50 bg-black/95 backdrop-blur-xl border-b border-[#242424]">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3">
+          <div className="flex items-center gap-2 md:gap-5">
+
+            {/* LOGO + NOMBRE */}
+
+            <Link
+              href="/"
+              className="flex items-center gap-2 md:gap-3 shrink-0"
+              aria-label="EMPREespacio"
+            >
+              <Image
+                src="/logo.png"
+                alt="EMPREespacio"
+                width={56}
+                height={56}
+                priority
+                className="w-11 h-11 sm:w-12 sm:h-12 md:w-14 md:h-14 object-contain shrink-0"
+              />
+
+              {isDesktop && (
+                <span className="font-black tracking-tight text-xl text-white whitespace-nowrap">
+                  <span className="text-[#B4232D]">
+                    Empre
+                  </span>
+                  Espacio
+                </span>
+              )}
+            </Link>
+
+            {/* BUSCADOR */}
+
+            <div className="flex-1 min-w-0">
+              <div className="relative w-full max-w-[650px] mx-auto">
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(event) =>
+                    setSearch(
+                      event.target.value
+                    )
+                  }
+                  placeholder="Buscar emprendimientos o productos..."
+                  className="w-full h-10 md:h-11 pl-3 md:pl-4 pr-10 md:pr-11 rounded-xl border border-[#292929] bg-[#111111] text-white placeholder:text-gray-600 outline-none focus:border-[#B4232D] focus:ring-1 focus:ring-[#B4232D]/30 transition-all text-sm md:text-base"
+                />
+
+                <Search
+                  size={18}
+                  className="absolute right-3 md:right-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+                />
+              </div>
+            </div>
+
+            {/* USUARIO */}
+
+            {!authLoading &&
+              (isLoggedIn ? (
+                <Link
+                  href="/account"
+                  className="shrink-0 w-10 h-10 md:w-11 md:h-11 rounded-xl overflow-hidden border border-[#292929] bg-[#151515] flex items-center justify-center hover:border-[#B4232D] transition-colors"
+                  aria-label={
+                    userProfile?.business_name ||
+                    "Mi perfil"
+                  }
+                >
+                  {userProfile?.avatar_url ? (
+                    <Image
+                      src={
+                        userProfile.avatar_url
+                      }
+                      alt={
+                        userProfile.business_name ||
+                        "Mi emprendimiento"
+                      }
+                      width={44}
+                      height={44}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Store
+                      size={20}
+                      className="text-[#B4232D]"
+                    />
+                  )}
+                </Link>
+              ) : (
+                <Link
+                  href="/auth"
+                  className="shrink-0 bg-[#B4232D] hover:bg-[#951D26] text-white px-3 md:px-4 py-2.5 rounded-xl font-bold text-xs md:text-sm transition-colors"
+                >
+                  <span className="md:hidden">
+                    Entrar
+                  </span>
+
+                  <span className="hidden md:inline">
+                    Registrarse
+                  </span>
+                </Link>
+              ))}
+          </div>
+        </div>
+      </header>
+
+      {/* =====================================================
+          CONTENIDO
+          ===================================================== */}
+
+      <main className="max-w-7xl mx-auto px-4 pt-7">
+        {hasSearch ? (
+          <SearchResults
+            stores={searchStores}
+            products={searchProducts}
+            loading={searchLoading}
+          />
+        ) : (
+          <>
+            {/* =====================================================
+                BANNER
+                ===================================================== */}
+
+            <HomeBanner />
+
+            {/* =====================================================
+                LOADING
+                ===================================================== */}
+
+            {loading ? (
+              <div className="space-y-10">
+                {[1, 2, 3].map(
+                  (section) => (
+                    <section
+                      key={section}
+                    >
+                      <div className="h-7 w-52 bg-[#171717] rounded-lg mb-2 animate-pulse" />
+
+                      <div className="h-4 w-72 bg-[#131313] rounded mb-5 animate-pulse" />
+
+                      <div className="flex gap-4 overflow-hidden">
+                        {[1, 2, 3, 4].map(
+                          (card) => (
+                            <div
+                              key={card}
+                              className="min-w-[250px] h-[280px] bg-[#111111] border border-[#202020] rounded-2xl animate-pulse"
+                            />
+                          )
+                        )}
+                      </div>
+                    </section>
+                  )
+                )}
+              </div>
+            ) : stores.length === 0 ? (
+              <div className="py-20 text-center">
+                <div className="w-16 h-16 mx-auto rounded-2xl bg-[#111111] border border-[#252525] flex items-center justify-center">
+                  <Store
+                    size={32}
+                    className="text-gray-600"
+                  />
+                </div>
+
+                <h2 className="text-xl font-bold text-white mt-5">
+                  Todavía no hay emprendimientos
+                </h2>
+
+                <p className="text-sm text-gray-500 mt-2">
+                  Cuando se registren emprendimientos aparecerán acá.
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* =====================================================
+                    SEPARADOR EMPRENDIMIENTOS
+                    ===================================================== */}
+
+                <section className="mb-10 mt-10 sm:mb-12 sm:mt-14">
+                  <div className="relative flex items-center">
+                    <div className="h-2 w-full bg-[#B4232D]" />
+
+                    <div className="absolute left-1/2 -translate-x-1/2 bg-black px-4 sm:px-6">
+                      <h2 className="whitespace-nowrap text-xl font-black uppercase tracking-[0.16em] text-white sm:text-3xl">
+                        NUEVOS EMPRENDIMIENTOS
+                      </h2>
                     </div>
                   </div>
-                </div>
-              </Link>
-              );
-            })}
-          </div>
+
+                  <p className="mt-5 text-sm text-[#888888] sm:text-base">
+                    Descubrí los últimos emprendimientos
+                  </p>
+                </section>
+
+                <StoreSection
+                  title="Nuevos emprendimientos"
+                  stores={newStores}
+                  favoriteIds={favoriteIds}
+                  currentUserId={currentUserId}
+                  onToggleFavorite={toggleFavorite}
+                  hideHeader
+                />
+
+                {/* =====================================================
+                    SEPARADOR PRODUCTOS
+                    ===================================================== */}
+
+                <section className="mb-10 mt-14 sm:mb-12 sm:mt-20">
+                  <div className="relative flex items-center">
+                    <div className="h-2 w-full bg-[#B4232D]" />
+
+                    <div className="absolute left-1/2 -translate-x-1/2 bg-black px-4 sm:px-6">
+                      <h2 className="whitespace-nowrap text-xl font-black uppercase tracking-[0.16em] text-white sm:text-3xl">
+                        PRODUCTOS
+                      </h2>
+                    </div>
+                  </div>
+
+                  <p className="mt-5 text-sm text-[#888888] sm:text-base">
+                    Explorá emprendimientos según lo que estás buscando
+                  </p>
+                </section>
+
+                {productCategories.map(
+                  (category) => (
+                    <StoreSection
+                      key={`product-${category}`}
+                      title={category}
+                      subtitle="Emprendimientos que ofrecen estos productos"
+                      stores={getStoresByCategory(
+                        category
+                      )}
+                      favoriteIds={favoriteIds}
+                      currentUserId={currentUserId}
+                      onToggleFavorite={
+                        toggleFavorite
+                      }
+                    />
+                  )
+                )}
+
+                {/* =====================================================
+                    SEPARADOR SERVICIOS
+                    ===================================================== */}
+
+                <section className="mb-10 mt-16 sm:mb-12 sm:mt-20">
+                  <div className="relative flex items-center">
+                    <div className="h-2 w-full bg-[#B4232D]" />
+
+                    <div className="absolute left-1/2 -translate-x-1/2 bg-black px-4 sm:px-6">
+                      <h2 className="whitespace-nowrap text-xl font-black uppercase tracking-[0.16em] text-white sm:text-3xl">
+                        SERVICIOS
+                      </h2>
+                    </div>
+                  </div>
+
+                  <p className="mt-5 text-sm text-[#888888] sm:text-base">
+                    Encontrá personas y emprendimientos que ofrecen servicios
+                  </p>
+                </section>
+
+                {serviceCategories.map(
+                  (category) => (
+                    <StoreSection
+                      key={`service-${category}`}
+                      title={category}
+                      subtitle="Emprendimientos que ofrecen estos servicios"
+                      stores={getStoresByCategory(
+                        category
+                      )}
+                      favoriteIds={favoriteIds}
+                      currentUserId={currentUserId}
+                      onToggleFavorite={
+                        toggleFavorite
+                      }
+                    />
+                  )
+                )}
+              </>
+            )}
+          </>
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-[var(--color-border)] mt-8">
-        <div className="max-w-[1400px] mx-auto px-8 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-[linear-gradient(135deg,var(--color-brand-start),var(--color-brand-end))] flex items-center justify-center">
-              <span className="text-white text-xs font-black">M</span>
-            </div>
-            <span className="font-extrabold text-sm tracking-tight">mercari</span>
-          </div>
-          <div className="flex items-center gap-6 text-[12.5px] text-[var(--color-muted)] font-medium">
-            <Link href="/sell" className="hover:text-[var(--color-brand)] transition-colors no-underline">Sell</Link>
-            <Link href="/auth" className="hover:text-[var(--color-brand)] transition-colors no-underline">Sign in</Link>
-            <span>© {new Date().getFullYear()} mercari clone</span>
-          </div>
-        </div>
-      </footer>
+      <BottomNav />
     </div>
   );
 }

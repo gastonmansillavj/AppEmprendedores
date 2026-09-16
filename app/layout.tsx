@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { NotificationsProvider } from "./components/NotificationsProvider";
+import BottomNav from "./components/ui/BottomNav";
 
 export const metadata: Metadata = {
-  title: "mercari — buy and sell anything",
-  description: "A marketplace to buy and sell pre-loved items.",
+  title: "EMPREespacio",
+  description: "El espacio donde crecen los emprendimientos de Rafaela.",
 };
 
 const themeInitScript = `
@@ -24,11 +25,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
-      <body className="min-h-full flex flex-col">
+    <html lang="es" className="h-full antialiased" suppressHydrationWarning>
+      <body className="min-h-full flex flex-col pb-16">
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+
         <ThemeProvider>
-          <NotificationsProvider>{children}</NotificationsProvider>
+          <NotificationsProvider>
+            {children}
+            <BottomNav />
+          </NotificationsProvider>
         </ThemeProvider>
       </body>
     </html>
