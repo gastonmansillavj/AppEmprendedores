@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import Button from "../components/ui/Button";
-import { signIn, signUp } from "../../lib/auth";
+import { signIn, signUp, resetPassword } from "../../lib/auth";
 import { supabase } from "../../lib/supabase";
 
 export default function AuthPage() {
@@ -31,6 +31,9 @@ function AuthForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  const [showForgotPassword, setShowForgotPassword] =
+    useState(false);
+
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -53,7 +56,9 @@ function AuthForm() {
         }
 
         if (password !== confirmPassword) {
-          throw new Error("Las contraseñas no coinciden.");
+          throw new Error(
+            "Las contraseñas no coinciden."
+          );
         }
 
         await signUp(email, password);
@@ -69,14 +74,22 @@ function AuthForm() {
       // LOGIN
       // ============================
 
-      const { user } = await signIn(email, password);
+      const { user } = await signIn(
+        email,
+        password
+      );
 
       if (!user) {
-        throw new Error("No se pudo obtener el usuario.");
+        throw new Error(
+          "No se pudo obtener el usuario."
+        );
       }
 
       // Buscamos el perfil del usuario
-      const { data: profile, error: profileError } = await supabase
+      const {
+        data: profile,
+        error: profileError,
+      } = await supabase
         .from("profiles")
         .select("business_name")
         .eq("id", user.id)
@@ -110,6 +123,37 @@ function AuthForm() {
     }
   };
 
+  const handleForgotPassword = async (
+    e: React.FormEvent
+  ) => {
+    e.preventDefault();
+
+    setError("");
+    setLoading(true);
+
+    try {
+      if (!email.trim()) {
+        throw new Error(
+          "Ingresá tu email para recuperar la contraseña."
+        );
+      }
+
+      await resetPassword(email);
+
+      setError(
+        "Te enviamos un email para recuperar tu contraseña. Revisá tu bandeja de entrada."
+      );
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo enviar el email de recuperación."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const inputClass =
     "w-full border border-[var(--color-border)] bg-[var(--color-subtle)] rounded-xl px-4 py-2 text-sm outline-none focus:border-[var(--color-brand)] transition-colors";
 
@@ -117,6 +161,103 @@ function AuthForm() {
     "block text-sm font-medium text-[var(--color-muted)] mb-1";
 
   const isLogin = mode === "login";
+
+  // ============================
+  // RECUPERAR CONTRASEÑA
+  // ============================
+
+  if (showForgotPassword) {
+    return (
+      <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex items-center justify-center px-4">
+        <div className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] shadow-[var(--shadow-card-hover)] p-8 w-full max-w-sm">
+
+          <Link
+            href="/"
+            className="text-2xl font-extrabold text-[var(--color-brand)] block mb-6 no-underline tracking-tight"
+          >
+            AppEmprendedores
+          </Link>
+
+          <h1 className="text-xl font-bold mb-1">
+            Recuperar contraseña
+          </h1>
+
+          <p className="text-[var(--color-muted)] text-sm mb-6">
+            Ingresá tu email y te enviaremos un enlace
+            para crear una nueva contraseña.
+          </p>
+
+          <form
+            onSubmit={handleForgotPassword}
+            className="space-y-4"
+          >
+            {/* EMAIL */}
+
+            <div>
+              <label className={labelClass}>
+                Email
+              </label>
+
+              <input
+                type="email"
+                value={email}
+                onChange={(e) =>
+                  setEmail(e.target.value)
+                }
+                required
+                placeholder="tu@email.com"
+                className={inputClass}
+              />
+            </div>
+
+            {/* MENSAJE */}
+
+            {error && (
+              <p
+                className={`text-sm ${
+                  error.startsWith(
+                    "Te enviamos"
+                  )
+                    ? "text-green-500"
+                    : "text-red-500"
+                }`}
+              >
+                {error}
+              </p>
+            )}
+
+            {/* BOTÓN */}
+
+            <Button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3"
+            >
+              {loading
+                ? "Enviando..."
+                : "Enviar enlace"}
+            </Button>
+          </form>
+
+          {/* VOLVER */}
+
+          <p className="text-center text-sm text-[var(--color-muted)] mt-4">
+            <button
+              type="button"
+              onClick={() => {
+                setError("");
+                setLoading(false);
+                setShowForgotPassword(false);
+              }}
+              className="text-[var(--color-brand)] font-semibold"
+            >
+              Volver a iniciar sesión
+            </button>
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)] flex items-center justify-center px-4">
@@ -130,7 +271,9 @@ function AuthForm() {
         </Link>
 
         <h1 className="text-xl font-bold mb-1">
-          {isLogin ? "Iniciar sesión" : "Crear cuenta"}
+          {isLogin
+            ? "Iniciar sesión"
+            : "Crear cuenta"}
         </h1>
 
         <p className="text-[var(--color-muted)] text-sm mb-6">
@@ -139,9 +282,13 @@ function AuthForm() {
             : "Creá tu cuenta para comenzar"}
         </p>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-4"
+        >
 
           {/* EMAIL */}
+
           <div>
             <label className={labelClass}>
               Email
@@ -150,7 +297,9 @@ function AuthForm() {
             <input
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) =>
+                setEmail(e.target.value)
+              }
               required
               placeholder="tu@email.com"
               className={inputClass}
@@ -158,6 +307,7 @@ function AuthForm() {
           </div>
 
           {/* CONTRASEÑA */}
+
           <div>
             <label className={labelClass}>
               Contraseña
@@ -165,9 +315,15 @@ function AuthForm() {
 
             <div className="relative">
               <input
-                type={showPassword ? "text" : "password"}
+                type={
+                  showPassword
+                    ? "text"
+                    : "password"
+                }
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) =>
+                  setPassword(e.target.value)
+                }
                 required
                 minLength={6}
                 placeholder="••••••••"
@@ -176,7 +332,11 @@ function AuthForm() {
 
               <button
                 type="button"
-                onClick={() => setShowPassword((value) => !value)}
+                onClick={() =>
+                  setShowPassword(
+                    (value) => !value
+                  )
+                }
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
                 aria-label={
                   showPassword
@@ -197,9 +357,27 @@ function AuthForm() {
                 Mínimo 6 caracteres.
               </p>
             )}
+
+            {/* RECUPERAR CONTRASEÑA */}
+
+            {isLogin && (
+              <div className="mt-2 text-right">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError("");
+                    setShowForgotPassword(true);
+                  }}
+                  className="text-xs text-[var(--color-brand)] font-semibold hover:underline"
+                >
+                  ¿Olvidaste tu contraseña?
+                </button>
+              </div>
+            )}
           </div>
 
           {/* REPETIR CONTRASEÑA */}
+
           {!isLogin && (
             <div>
               <label className={labelClass}>
@@ -215,7 +393,9 @@ function AuthForm() {
                   }
                   value={confirmPassword}
                   onChange={(e) =>
-                    setConfirmPassword(e.target.value)
+                    setConfirmPassword(
+                      e.target.value
+                    )
                   }
                   required
                   minLength={6}
@@ -248,10 +428,13 @@ function AuthForm() {
           )}
 
           {/* MENSAJE */}
+
           {error && (
             <p
               className={`text-sm ${
-                error.startsWith("Cuenta creada")
+                error.startsWith(
+                  "Cuenta creada"
+                )
                   ? "text-green-500"
                   : "text-red-500"
               }`}
@@ -261,6 +444,7 @@ function AuthForm() {
           )}
 
           {/* BOTÓN */}
+
           <Button
             type="submit"
             disabled={loading}
@@ -275,6 +459,7 @@ function AuthForm() {
         </form>
 
         {/* CAMBIAR LOGIN / REGISTRO */}
+
         <p className="text-center text-sm text-[var(--color-muted)] mt-4">
           {isLogin
             ? "¿No tenés una cuenta?"
@@ -288,8 +473,11 @@ function AuthForm() {
               setConfirmPassword("");
               setShowPassword(false);
               setShowConfirmPassword(false);
+
               setMode(
-                isLogin ? "signup" : "login"
+                isLogin
+                  ? "signup"
+                  : "login"
               );
             }}
             className="text-[var(--color-brand)] font-semibold"

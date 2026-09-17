@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -946,7 +945,7 @@ export default function Home() {
           HEADER
           ===================================================== */}
 
-      <header className="sticky top-0 z-50 bg-black/95 backdrop-blur-xl border-b border-[#242424]">
+      <header className="sticky top-0 z-[100] bg-black/95 backdrop-blur-xl border-b border-[#242424]">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3">
           <div className="flex items-center gap-2 md:gap-5">
 
@@ -1037,7 +1036,7 @@ export default function Home() {
                   className="shrink-0 bg-[#B4232D] hover:bg-[#951D26] text-white px-3 md:px-4 py-2.5 rounded-xl font-bold text-xs md:text-sm transition-colors"
                 >
                   <span className="md:hidden">
-                    Entrar
+                    Registrarse
                   </span>
 
                   <span className="hidden md:inline">
@@ -1142,6 +1141,7 @@ export default function Home() {
                   favoriteIds={favoriteIds}
                   currentUserId={currentUserId}
                   onToggleFavorite={toggleFavorite}
+                  viewAllHref="/emprendimientos"
                   hideHeader
                 />
 
@@ -1179,6 +1179,9 @@ export default function Home() {
                       onToggleFavorite={
                         toggleFavorite
                       }
+                      viewAllHref={`/emprendimientos?categoria=${encodeURIComponent(
+                        category
+                      )}`}
                     />
                   )
                 )}
@@ -1217,6 +1220,9 @@ export default function Home() {
                       onToggleFavorite={
                         toggleFavorite
                       }
+                      viewAllHref={`/emprendimientos?categoria=${encodeURIComponent(
+                        category
+                      )}`}
                     />
                   )
                 )}

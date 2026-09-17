@@ -4,15 +4,18 @@ export async function signUp(
   email: string,
   password: string
 ) {
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-  });
+  const { data, error } =
+    await supabase.auth.signUp({
+      email,
+      password,
+    });
 
   if (error) throw error;
 
   if (!data.user) {
-    throw new Error("No se pudo crear la cuenta.");
+    throw new Error(
+      "No se pudo crear la cuenta."
+    );
   }
 
   return data;
@@ -46,4 +49,18 @@ export async function getUser() {
   } = await supabase.auth.getUser();
 
   return user;
+}
+
+export async function resetPassword(
+  email: string
+) {
+  const { error } =
+    await supabase.auth.resetPasswordForEmail(
+      email,
+      {
+        redirectTo: `${window.location.origin}/auth/reset-password`,
+      }
+    );
+
+  if (error) throw error;
 }

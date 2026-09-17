@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft,
   MessageCircle,
   Store,
   ChevronLeft,
@@ -16,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
+import BackButton from "@/app/components/ui/BackButton";
 
 type Listing = {
   id: number;
@@ -267,10 +267,6 @@ export default function ListingPage() {
 
     setReportError("");
 
-    // ----------------------------------------------------------
-    // Validar motivo
-    // ----------------------------------------------------------
-
     if (!selectedReason) {
       setReportError(
         "Seleccioná un motivo para realizar el reporte."
@@ -278,10 +274,6 @@ export default function ListingPage() {
 
       return;
     }
-
-    // ----------------------------------------------------------
-    // Obtener usuario actual
-    // ----------------------------------------------------------
 
     setReportLoading(true);
 
@@ -300,10 +292,6 @@ export default function ListingPage() {
       return;
     }
 
-    // ----------------------------------------------------------
-    // Evitar autorreporte
-    // ----------------------------------------------------------
-
     if (user.id === listing.seller_id) {
       setReportError(
         "No podés reportar tu propia publicación."
@@ -313,10 +301,6 @@ export default function ListingPage() {
 
       return;
     }
-
-    // ----------------------------------------------------------
-    // Verificar si ya reportó esta publicación
-    // ----------------------------------------------------------
 
     const {
       data: existingReport,
@@ -353,10 +337,6 @@ export default function ListingPage() {
       return;
     }
 
-    // ----------------------------------------------------------
-    // Crear reporte
-    // ----------------------------------------------------------
-
     const { error: insertError } =
       await supabase
         .from("reports")
@@ -376,10 +356,6 @@ export default function ListingPage() {
         insertError
       );
 
-      // --------------------------------------------------------
-      // Por si la base detecta que ya existe
-      // --------------------------------------------------------
-
       if (
         insertError.code === "23505"
       ) {
@@ -396,10 +372,6 @@ export default function ListingPage() {
 
       return;
     }
-
-    // ----------------------------------------------------------
-    // ÉXITO
-    // ----------------------------------------------------------
 
     setReportSuccess(true);
     setReportLoading(false);
@@ -441,13 +413,7 @@ export default function ListingPage() {
     return (
       <div className="min-h-screen bg-[var(--color-bg)] text-[var(--color-text)]">
         <main className="mx-auto max-w-[1200px] px-4 py-10 md:px-8">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--color-muted)] no-underline hover:text-red-500"
-          >
-            <ArrowLeft size={17} />
-            Volver
-          </Link>
+          <BackButton />
 
           <div className="py-24 text-center">
             <Store
@@ -495,16 +461,10 @@ export default function ListingPage() {
       <nav className="sticky top-0 z-40 border-b border-white/10 bg-black/95 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1200px] items-center px-4 md:px-8">
 
-          <Link
+          <BackButton
             href={`/store/${listing.seller_id}`}
-            className="inline-flex items-center gap-2 text-sm font-semibold text-white no-underline"
-          >
-            <ArrowLeft size={18} />
-
-            <span>
-              Volver al emprendimiento
-            </span>
-          </Link>
+            label="Volver al emprendimiento"
+          />
 
         </div>
       </nav>
