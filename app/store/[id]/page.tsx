@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
+import BackButton from "@/app/components/ui/BackButton";
 
 type Profile = {
   id: string;
@@ -648,13 +649,7 @@ export default function StorePage() {
 
           <div className="mx-auto flex h-16 max-w-[1200px] items-center px-4 md:px-8">
 
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 text-sm font-bold text-white no-underline transition-colors hover:text-[#B4232D]"
-            >
-              <ArrowLeft size={18} />
-              Volver
-            </Link>
+            <BackButton />
 
           </div>
 
@@ -726,23 +721,7 @@ export default function StorePage() {
 
           <div className="mx-auto flex h-16 max-w-[1200px] items-center px-4 md:px-8">
 
-            <Link
-              href="/"
-              className="
-                inline-flex
-                items-center
-                gap-2
-                text-sm
-                font-bold
-                text-white
-                no-underline
-                transition-colors
-                hover:text-[#B4232D]
-              "
-            >
-              <ArrowLeft size={18} />
-              Volver
-            </Link>
+            <BackButton />
 
           </div>
 
@@ -833,23 +812,7 @@ export default function StorePage() {
 
         <div className="mx-auto flex h-16 max-w-[1200px] items-center px-4 md:px-8">
 
-          <Link
-            href="/"
-            className="
-              inline-flex
-              items-center
-              gap-2
-              text-sm
-              font-bold
-              text-white
-              no-underline
-              transition-colors
-              hover:text-[#B4232D]
-            "
-          >
-            <ArrowLeft size={18} />
-            Volver
-          </Link>
+          <BackButton />
 
           <div className="flex-1 text-center">
 
